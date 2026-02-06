@@ -1,2 +1,1218 @@
-# a
-aa
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>祥安新春開工競賽 - 3D競速對戰</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { 
+            width: 100%; height: 100%; overflow: hidden; background: #000; 
+            touch-action: none; font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif;
+            user-select: none; -webkit-user-select: none;
+        }
+        
+        :root { 
+            --scale: 1;
+            --top-bar-height: 45px;
+            --bottom-panel-height: 160px;
+        }
+        @media (max-width: 768px) { 
+            :root { --scale: 0.85; --bottom-panel-height: 180px; } 
+        }
+        @media (max-width: 480px) { 
+            :root { --scale: 0.7; --top-bar-height: 40px; --bottom-panel-height: 200px; } 
+        }
+        
+        #gameCanvas { 
+            position: fixed; 
+            top: var(--top-bar-height); 
+            left: 0; 
+            width: 100%; 
+            height: calc(100% - var(--top-bar-height) - var(--bottom-panel-height)); 
+            z-index: 1; 
+        }
+        
+        .top-hud {
+            position: fixed; top: 0; left: 0; right: 0;
+            height: var(--top-bar-height);
+            background: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.6));
+            border-bottom: 1px solid rgba(255,215,0,0.3);
+            z-index: 100;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 15px;
+        }
+        .hud-left { display: flex; align-items: center; gap: 15px; }
+        .hud-logo { font-size: calc(0.85rem * var(--scale)); color: #FFD700; font-weight: 900; }
+        .hud-rank { display: flex; align-items: baseline; gap: 3px; }
+        .hud-rank-num { font-size: calc(1.6rem * var(--scale)); color: #FFD700; font-weight: 900; }
+        .hud-rank-total { font-size: calc(0.8rem * var(--scale)); color: #888; }
+        .hud-center { display: flex; align-items: center; gap: 20px; }
+        .hud-progress { display: flex; align-items: center; gap: 8px; }
+        .hud-clicks { font-size: calc(1.6rem * var(--scale)); color: #fff; font-weight: 900; }
+        .hud-target { font-size: calc(0.9rem * var(--scale)); color: #888; }
+        .hud-progress-bar { width: 100px; height: 8px; background: #222; border-radius: 4px; overflow: hidden; }
+        .hud-progress-fill { height: 100%; background: linear-gradient(90deg, #FFD700, #FF6347); width: 0%; transition: width 0.1s; }
+        .hud-time { font-size: calc(1rem * var(--scale)); color: #00f5ff; font-family: monospace; }
+        .hud-right { display: flex; align-items: center; gap: 10px; }
+        .hud-stamina { display: flex; align-items: center; gap: 5px; }
+        .hud-stamina-label { font-size: calc(0.65rem * var(--scale)); color: #888; }
+        .hud-stamina-bar { width: 60px; height: 6px; background: #222; border-radius: 3px; overflow: hidden; }
+        .hud-stamina-fill { height: 100%; background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c); width: 100%; transition: width 0.2s; }
+        .hud-speed { font-size: calc(0.85rem * var(--scale)); color: #FFD700; }
+        
+        .bottom-panel {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            height: var(--bottom-panel-height);
+            background: linear-gradient(0deg, rgba(0,0,0,0.95), rgba(0,0,0,0.7));
+            border-top: 2px solid rgba(255,215,0,0.4);
+            z-index: 100;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            padding: 10px; gap: 10px;
+        }
+        .bottom-panel.active { display: flex; }
+        .panel-row { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; max-width: 500px; }
+        
+        .speed-gauge {
+            width: calc(80px * var(--scale)); height: calc(80px * var(--scale));
+            min-width: 60px; min-height: 60px;
+            border-radius: 50%; border: 3px solid #FFD700;
+            position: relative; background: radial-gradient(circle, #1a1a2e 0%, #000 100%);
+        }
+        .gauge-needle { position: absolute; bottom: 50%; left: 50%; width: 3px; height: 40%; background: linear-gradient(to top, #FFD700, #FF6347); transform-origin: bottom; transform: translateX(-50%) rotate(-135deg); transition: transform 0.1s; }
+        .gauge-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .gauge-value { font-size: calc(1.1rem * var(--scale)); color: #FFD700; font-weight: 900; }
+        .gauge-label { font-size: calc(0.55rem * var(--scale)); color: #888; }
+        
+        .main-click-btn {
+            width: calc(100px * var(--scale)); height: calc(100px * var(--scale));
+            min-width: 75px; min-height: 75px;
+            border-radius: 50%; border: 4px solid #FFD700;
+            background: linear-gradient(135deg, rgba(255,215,0,0.8), rgba(255,99,71,0.5));
+            color: #fff; font-size: calc(1.2rem * var(--scale)); font-weight: 900;
+            cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 0 0 25px rgba(255,215,0,0.5); animation: pulse-btn 1.5s infinite;
+        }
+        .main-click-btn:active { transform: scale(0.95); }
+        @keyframes pulse-btn { 0%, 100% { box-shadow: 0 0 25px rgba(255,215,0,0.5); } 50% { box-shadow: 0 0 40px rgba(255,215,0,0.8); } }
+        .click-icon { font-size: calc(1.6rem * var(--scale)); }
+        .click-text { font-size: calc(0.75rem * var(--scale)); }
+        
+        .side-bts { display: flex; flex-direction: column; gap: 8px; }
+        .side-btn { padding: 8px 14px; background: rgba(255,255,255,0.08); border: 2px solid #444; color: #fff; border-radius: 18px; font-size: calc(0.75rem * var(--scale)); font-weight: 700; cursor: pointer; }
+        .side-btn:hover { border-color: #FFD700; }
+        .side-btn:disabled { opacity: 0.4; }
+        .side-btn.active { border-color: #00f5ff; background: rgba(0,245,255,0.2); color: #00f5ff; }
+        
+        .racer-list { position: fixed; top: calc(var(--top-bar-height) + 10px); right: 10px; width: 130px; max-height: calc(100% - var(--top-bar-height) - var(--bottom-panel-height) - 20px); background: rgba(0,0,0,0.85); border: 1px solid rgba(255,215,0,0.3); border-radius: 10px; z-index: 50; display: none; overflow-y: auto; padding: 8px; }
+        .racer-list.active { display: block; }
+        .racer-item { display: flex; align-items: center; gap: 6px; padding: 5px 6px; margin-bottom: 4px; background: rgba(255,255,255,0.05); border-radius: 5px; font-size: calc(0.65rem * var(--scale)); }
+        .racer-item.leading { background: rgba(255,215,0,0.15); border: 1px solid #FFD700; }
+        .racer-rank { color: #FFD700; font-weight: 900; min-width: 16px; }
+        .racer-name { color: #fff; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .racer-count { color: #00f5ff; font-weight: 700; font-family: monospace; }
+        
+        .loading-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #8B0000 0%, #DC143C 50%, #8B0000 100%); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; }
+        .loading-logo { width: calc(140px * var(--scale)); height: calc(140px * var(--scale)); background: url('xiang_an_logo.png') center/contain no-repeat; filter: drop-shadow(0 0 30px rgba(255,215,0,0.8)); animation: logoPulse 2s ease-in-out infinite; }
+        @keyframes logoPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .loading-title { font-size: calc(2.2rem * var(--scale)); color: #FFD700; text-shadow: 0 0 20px #FFD700; margin-top: 15px; font-weight: 900; }
+        .loading-subtitle { font-size: calc(1.1rem * var(--scale)); color: #FFF; margin-top: 8px; }
+        .loading-bar-bg { width: min(280px, 70vw); height: 10px; background: rgba(0,0,0,0.5); margin-top: 25px; border-radius: 5px; overflow: hidden; border: 2px solid #FFD700; }
+        .loading-bar { height: 100%; background: linear-gradient(90deg, #FFD700, #FFA500, #FFD700); width: 0%; transition: width 0.3s; }
+        .loading-text { margin-top: 12px; color: #FFD700; font-size: calc(0.85rem * var(--scale)); }
+        
+        .main-menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(180deg, #8B0000 0%, #4a0000 100%); display: none; z-index: 200; justify-content: center; align-items: center; padding: 15px; }
+        .main-menu.active { display: flex; }
+        .menu-container { text-align: center; width: 100%; max-width: 400px; background: rgba(0,0,0,0.3); padding: 25px; border-radius: 20px; border: 2px solid rgba(255,215,0,0.3); }
+        .menu-logo { width: calc(90px * var(--scale)); height: calc(90px * var(--scale)); background: url('xiang_an_logo.png') center/contain no-repeat; margin: 0 auto 15px; }
+        .menu-title { font-size: calc(2rem * var(--scale)); color: #FFD700; letter-spacing: 0.15em; font-weight: 900; }
+        .menu-subtitle { font-size: calc(0.9rem * var(--scale)); color: #FFF; letter-spacing: 0.4em; margin-bottom: 20px; }
+        .connection-status { color: #AAA; font-size: calc(0.75rem * var(--scale)); margin-bottom: 15px; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 6px; }
+        .connection-status.connected { color: #2ecc71; border: 1px solid #2ecc71; }
+        .connection-status.connecting { color: #FFA500; border: 1px solid #FFA500; }
+        .connection-status.error { color: #e74c3c; border: 1px solid #e74c3c; }
+        .name-input { padding: 10px 18px; background: rgba(0,0,0,0.4); border: 2px solid #FFD700; color: #FFD700; font-size: calc(0.95rem * var(--scale)); border-radius: 8px; text-align: center; width: 200px; margin-bottom: 18px; outline: none; }
+        .menu-btns { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+        .menu-btn { width: min(260px, 80vw); padding: calc(13px * var(--scale)); background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,99,71,0.2)); border: 2px solid #FFD700; color: #FFD700; font-size: calc(0.95rem * var(--scale)); font-weight: 900; cursor: pointer; border-radius: 8px; }
+        .menu-btn:hover { background: linear-gradient(135deg, rgba(255,215,0,0.4), rgba(255,99,71,0.4)); transform: scale(1.02); }
+        .menu-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .lobby-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(180deg, #1a0000 0%, #0a0000 100%); display: none; z-index: 200; padding: 15px; overflow-y: auto; }
+        .lobby-screen.active { display: block; }
+        .lobby-header { text-align: center; margin-bottom: 15px; padding: 10px; }
+        .lobby-title { font-size: calc(1.6rem * var(--scale)); color: #FFD700; letter-spacing: 0.2em; }
+        .lobby-code { font-size: calc(0.95rem * var(--scale)); color: #00f5ff; margin-top: 10px; padding: 10px 25px; background: rgba(0,245,255,0.1); border: 2px solid #00f5ff; display: inline-block; font-family: monospace; cursor: pointer; border-radius: 6px; }
+        .lobby-target { color: #AAA; margin-top: 10px; font-size: calc(0.85rem * var(--scale)); }
+        .lobby-target span { color: #FFD700; font-weight: 900; }
+        
+        .slots-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-width: 500px; margin: 15px auto; }
+        @media (max-width: 550px) { .slots-grid { grid-template-columns: repeat(2, 1fr); } }
+        .slot { height: calc(100px * var(--scale)); min-height: 75px; background: rgba(255,255,255,0.03); border: 2px solid #333; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 10px; padding: 5px; }
+        .slot.occupied { border-color: #FFD700; background: rgba(255,215,0,0.08); }
+        .slot.ready { border-color: #00f5ff; box-shadow: 0 0 15px rgba(0,245,255,0.3); }
+        .slot.ai { border-color: #8338ec; background: rgba(131,56,236,0.1); }
+        .slot-avatar { font-size: calc(1.8rem * var(--scale)); margin-bottom: 3px; }
+        .slot-name { font-size: calc(0.65rem * var(--scale)); color: #fff; text-align: center; font-weight: 700; }
+        .slot-status { font-size: calc(0.55rem * var(--scale)); color: #888; text-transform: uppercase; margin-top: 3px; }
+        .slot-check { margin-top: 5px; display: flex; align-items: center; gap: 4px; color: #fff; font-size: calc(0.6rem * var(--scale)); cursor: pointer; }
+        
+        .lobby-controls { display: flex; gap: 10px; justify-content: center; margin-top: 20px; flex-wrap: wrap; }
+        .lobby-ctrl-btn { padding: calc(11px * var(--scale)) calc(18px * var(--scale)); font-size: calc(0.8rem * var(--scale)); font-weight: 900; cursor: pointer; border: 2px solid; border-radius: 6px; min-width: 90px; }
+        .lobby-ctrl-btn.start { background: linear-gradient(135deg, #FFD700, #FFA500); border-color: #FFD700; color: #000; }
+        .lobby-ctrl-btn.start:disabled { background: #222; border-color: #333; color: #555; }
+        .lobby-ctrl-btn.cancel { background: transparent; border-color: #444; color: #888; }
+        .lobby-ctrl-btn.ai { background: rgba(131,56,236,0.2); border-color: #8338ec; color: #8338ec; }
+        .lobby-ctrl-btn.ai.active { background: #8338ec; color: #fff; }
+        
+        .countdown-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); display: none; justify-content: center; align-items: center; z-index: 400; flex-direction: column; }
+        .countdown-screen.active { display: flex; }
+        .countdown-num { font-size: calc(15rem * var(--scale)); font-weight: 900; color: #FFD700; text-shadow: 0 0 100px #FFD700; }
+        .countdown-text { font-size: calc(1.5rem * var(--scale)); color: #00f5ff; letter-spacing: 0.5em; margin-top: 20px; }
+        
+        .result-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(180deg, #8B0000 0%, #4a0000 100%); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 500; padding: 15px; overflow-y: auto; }
+        .result-screen.active { display: flex; }
+        .result-title { font-size: calc(3rem * var(--scale)); font-weight: 900; margin-bottom: 15px; }
+        .result-title.win { color: #FFD700; text-shadow: 0 0 40px #FFD700; animation: titlePulse 2s infinite; }
+        @keyframes titlePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .victory-slogan { font-size: calc(1.3rem * var(--scale)); color: #FFD700; text-shadow: 0 0 20px #FFD700; margin-bottom: 25px; }
+        .result-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 25px; max-width: 700px; width: 100%; }
+        @media (max-width: 800px) { .result-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 400px) { .result-grid { grid-template-columns: 1fr; } }
+        .result-card { background: rgba(255,255,255,0.05); border: 2px solid #333; padding: 12px; text-align: center; border-radius: 10px; }
+        .result-card.highlight { border-color: #FFD700; background: rgba(255,215,0,0.15); transform: scale(1.05); }
+        .result-rank { font-size: calc(1.8rem * var(--scale)); font-weight: 900; margin-bottom: 5px; }
+        .result-rank.gold { color: #FFD700; text-shadow: 0 0 15px #FFD700; }
+        .result-rank.silver { color: #C0C0C0; }
+        .result-rank.bronze { color: #CD7F32; }
+        .result-avatar { font-size: calc(2rem * var(--scale)); margin: 5px 0; }
+        .result-name { font-size: calc(0.8rem * var(--scale)); color: #aaa; margin-bottom: 3px; }
+        .result-clicks { font-size: calc(1.1rem * var(--scale)); color: #FFD700; font-weight: 900; }
+        .result-time { font-size: calc(0.7rem * var(--scale)); color: #00f5ff; margin-top: 3px; }
+        .result-btn { padding: calc(12px * var(--scale)) calc(30px * var(--scale)); background: linear-gradient(135deg, #FFD700, #FFA500); border: none; color: #000; font-size: calc(0.95rem * var(--scale)); font-weight: 900; cursor: pointer; border-radius: 10px; }
+        .result-btn:hover { transform: scale(1.05); }
+        
+        .notification { position: fixed; top: calc(var(--top-bar-height) + 10px); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.95); border: 2px solid #FFD700; padding: 10px 25px; font-size: calc(0.95rem * var(--scale)); font-weight: 900; color: #FFD700; opacity: 0; transition: all 0.3s; z-index: 300; border-radius: 8px; pointer-events: none; }
+        .notification.show { opacity: 1; }
+        .notification.boost { color: #00f5ff; border-color: #00f5ff; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-overlay.active { display: flex; }
+        .modal-box { background: linear-gradient(135deg, #1a0000, #0a0000); border: 2px solid #FFD700; padding: 25px; border-radius: 12px; text-align: center; max-width: 320px; width: 90%; }
+        .modal-title { color: #FFD700; font-size: calc(1.2rem * var(--scale)); margin-bottom: 18px; font-weight: 900; }
+        .modal-input { width: 100%; padding: 12px; background: rgba(0,0,0,0.5); border: 2px solid #444; color: #FFD700; font-size: calc(1rem * var(--scale)); border-radius: 8px; margin-bottom: 18px; text-align: center; outline: none; }
+        .modal-btns { display: flex; gap: 10px; justify-content: center; }
+        .modal-btn { padding: 10px 22px; background: linear-gradient(135deg, #FFD700, #FFA500); border: none; color: #000; font-size: calc(0.85rem * var(--scale)); font-weight: 900; cursor: pointer; border-radius: 6px; }
+        .modal-btn.secondary { background: transparent; border: 2px solid #444; color: #888; }
+        
+        .click-effect { position: absolute; pointer-events: none; color: #FFD700; font-size: calc(1.3rem * var(--scale)); font-weight: 900; animation: floatUp 0.6s ease-out forwards; z-index: 200; text-shadow: 0 0 15px #FFD700; }
+        @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-50px) scale(1.3); } }
+    </style>
+<base target="_blank">
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <div class="top-hud" id="topHud" style="display:none;">
+        <div class="hud-left">
+            <div class="hud-logo">祥安競賽</div>
+            <div class="hud-rank">
+                <span class="hud-rank-num" id="hudRank">-</span>
+                <span class="hud-rank-total" id="hudTotal">/-</span>
+            </div>
+        </div>
+        <div class="hud-center">
+            <div class="hud-progress">
+                <span class="hud-clicks" id="hudClicks">0</span>
+                <span class="hud-target">/300</span>
+                <div class="hud-progress-bar"><div class="hud-progress-fill" id="hudProgressFill"></div></div>
+            </div>
+            <div class="hud-time" id="hudTime">00:00</div>
+        </div>
+        <div class="hud-right">
+            <div class="hud-stamina">
+                <span class="hud-stamina-label">體力</span>
+                <div class="hud-stamina-bar"><div class="hud-stamina-fill" id="hudStaminaFill"></div></div>
+            </div>
+            <div class="hud-speed" id="hudSpeed">0 CPS</div>
+        </div>
+    </div>
+    
+    <div class="racer-list" id="racerList"></div>
+    
+    <div class="bottom-panel" id="bottomPanel">
+        <div class="panel-row">
+            <div class="speed-gauge">
+                <div class="gauge-needle" id="gaugeNeedle"></div>
+                <div class="gauge-center">
+                    <div class="gauge-value" id="gaugeValue">0</div>
+                    <div class="gauge-label">CPS</div>
+                </div>
+            </div>
+            <button class="main-click-btn" id="mainClickBtn" onmousedown="doClick()" ontouchstart="doClick(event)">
+                <span class="click-icon">👆</span>
+                <span class="click-text">點擊</span>
+            </button>
+            <div class="side-bts">
+                <button class="side-btn" id="nitroBtn" onclick="useNitro()">⚡ 加速</button>
+                <button class="side-btn" onclick="rest()">💪 休息</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-logo"></div>
+        <div class="loading-title">祥安</div>
+        <div class="loading-subtitle">新春開工競賽</div>
+        <div class="loading-bar-bg"><div class="loading-bar" id="loadingBar"></div></div>
+        <div class="loading-text" id="loadingText">連線伺服器中...</div>
+    </div>
+    
+    <div class="main-menu" id="mainMenu">
+        <div class="menu-container">
+            <div class="menu-logo"></div>
+            <div class="menu-title">新春開工競賽</div>
+            <div class="menu-subtitle">3D競速對戰</div>
+            <div class="connection-status connecting" id="connStatus">🟡 連線中...</div>
+            <input type="text" class="name-input" id="playerName" placeholder="輸入你的名字" maxlength="8" value="玩家">
+            <div class="menu-btns">
+                <button class="menu-btn" id="createBtn" onclick="createRoom()">🎮 創建房間</button>
+                <button class="menu-btn" id="joinBtn" onclick="showJoinModal()">🔗 加入房間</button>
+                <button class="menu-btn" id="quickBtn" onclick="quickMatch()">⚡ 快速匹配 (AI)</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="lobby-screen" id="lobbyScreen">
+        <div class="lobby-header">
+            <div class="lobby-title">遊戲大廳</div>
+            <div class="lobby-code" id="lobbyCode" onclick="copyRoomCode()">ROOM: ----</div>
+            <div class="lobby-target">目標：先點滿 <span>300</span> 次點擊！</div>
+        </div>
+        <div class="slots-grid" id="slotsGrid"></div>
+        <div class="lobby-controls">
+            <button class="lobby-ctrl-btn ai" id="aiBtn" onclick="toggleAI()">🤖 添加AI</button>
+            <button class="lobby-ctrl-btn start" id="startBtn" onclick="startGame()" disabled>等待玩家...</button>
+            <button class="lobby-ctrl-btn cancel" onclick="leaveLobby()">離開</button>
+        </div>
+    </div>
+    
+    <div class="modal-overlay" id="joinModal">
+        <div class="modal-box">
+            <div class="modal-title">加入房間</div>
+            <input type="text" class="modal-input" id="joinCode" placeholder="輸入4位代碼" maxlength="4">
+            <div class="modal-btns">
+                <button class="modal-btn secondary" onclick="hideJoinModal()">取消</button>
+                <button class="modal-btn" onclick="joinRoom()">加入</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="countdown-screen" id="countdownScreen">
+        <div class="countdown-num" id="countdownNum">3</div>
+        <div class="countdown-text">準備開始</div>
+    </div>
+    
+    <div class="result-screen" id="resultScreen">
+        <div class="result-title" id="resultTitle">比賽結束！</div>
+        <div class="victory-slogan" id="victorySlogan"></div>
+        <div class="result-grid" id="resultGrid"></div>
+        <button class="result-btn" onclick="backToMenu()">返回主選單</button>
+    </div>
+    
+    <div class="notification" id="notification"></div>
+
+    <script>
+
+        // ==================== WebSocket 連線 ====================
+        const WS_URL = window.location.protocol === 'https:' 
+            ? `wss://${window.location.host}` 
+            : `ws://${window.location.host}`;
+        
+        let ws = null;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT = 5;
+        
+        // 遊戲配置
+        const CONFIG = {
+            TARGET_CLICKS: 300,
+            STAMINA_MAX: 100,
+            STAMINA_REGEN: 0.8,
+            STAMINA_COST: 3,
+            REST_GAIN: 25,
+            NITRO_COOLDOWN: 8000,
+            NITRO_DURATION: 3000
+        };
+        
+        // 遊戲狀態
+        let gameState = {
+            screen: 'loading',
+            roomCode: null,
+            playerId: null,
+            isHost: false,
+            players: [],
+            gameStarted: false,
+            startTime: 0,
+            gameEnded: false
+        };
+        
+        // 我的數據
+        let myData = {
+            name: '玩家',
+            clicks: 0,
+            speed: 0,
+            stamina: 100,
+            nitroActive: false,
+            nitroCooldown: 0,
+            clickTimes: [],
+            ready: false
+        };
+        
+        // 3D場景
+        let scene3D = {
+            trackLength: 1200,
+            laneWidth: 90,
+            particles: [],
+            clouds: [],
+            shake: 0,
+            camera: { x: 0, y: -200, z: 400 }
+        };
+        
+        // 連線 WebSocket
+        function connectWebSocket() {
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = () => {
+                console.log('✅ WebSocket 連線成功');
+                reconnectAttempts = 0;
+                document.getElementById('connStatus').textContent = '✅ 已連線';
+                document.getElementById('connStatus').className = 'connection-status connected';
+                document.getElementById('loadingText').textContent = '系統初始化中...';
+            };
+            
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                handleServerMessage(msg);
+            };
+            
+            ws.onclose = () => {
+                console.log('❌ WebSocket 斷線');
+                document.getElementById('connStatus').textContent = '❌ 斷線';
+                document.getElementById('connStatus').className = 'connection-status error';
+                
+                if (reconnectAttempts < MAX_RECONNECT) {
+                    reconnectAttempts++;
+                    setTimeout(connectWebSocket, 2000);
+                }
+            };
+            
+            ws.onerror = (err) => {
+                console.error('WebSocket 錯誤:', err);
+            };
+        }
+        
+        // 處理伺服器消息
+        function handleServerMessage(msg) {
+            console.log('收到:', msg.type);
+            
+            switch (msg.type) {
+                case 'roomCreated':
+                    gameState.roomCode = msg.roomCode;
+                    gameState.playerId = msg.playerId;
+                    gameState.isHost = msg.isHost;
+                    document.getElementById('lobbyCode').textContent = `ROOM: ${msg.roomCode}`;
+                    showScreen('lobby');
+                    showNotification('房間創建成功！');
+                    break;
+                    
+                case 'joinedRoom':
+                    gameState.roomCode = msg.roomCode;
+                    gameState.playerId = msg.playerId;
+                    gameState.isHost = msg.isHost;
+                    document.getElementById('lobbyCode').textContent = `ROOM: ${msg.roomCode}`;
+                    document.getElementById('aiBtn').style.display = 'none';
+                    showScreen('lobby');
+                    showNotification('成功加入房間！');
+                    break;
+                    
+                case 'playersUpdate':
+                    gameState.players = msg.players;
+                    updateLobbyUI();
+                    break;
+                    
+                case 'becameHost':
+                    gameState.isHost = true;
+                    document.getElementById('aiBtn').style.display = 'inline-block';
+                    showNotification('您已成為房主！');
+                    break;
+                    
+                case 'gameStarting':
+                    showScreen('countdown');
+                    break;
+                    
+                case 'countdown':
+                    document.getElementById('countdownNum').textContent = msg.value;
+                    break;
+                    
+                case 'gameStarted':
+                    gameState.gameStarted = true;
+                    gameState.startTime = msg.startTime;
+                    myData.clicks = 0;
+                    myData.stamina = 100;
+                    initGame();
+                    break;
+                    
+                case 'playerClick':
+                    updatePlayerClicks(msg.playerId, msg.clicks);
+                    break;
+                    
+                case 'playerFinished':
+                    updatePlayerFinished(msg.playerId, msg.clicks, msg.finishTime);
+                    break;
+                    
+                case 'playerNitro':
+                    showPlayerNitro(msg.playerId);
+                    break;
+                    
+                case 'gameEnded':
+                    showResults(msg.results);
+                    break;
+                    
+                case 'error':
+                    showNotification(msg.message);
+                    break;
+            }
+        }
+        
+        // 發送消息到伺服器
+        function send(msg) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(msg));
+            }
+        }
+        
+        // ==================== 畫面切換 ====================
+        function showScreen(name) {
+            document.querySelectorAll('.loading-screen, .main-menu, .lobby-screen, .countdown-screen, .result-screen').forEach(el => el.classList.remove('active'));
+            document.getElementById('topHud').style.display = 'none';
+            document.getElementById('bottomPanel').classList.remove('active');
+            document.getElementById('racerList').classList.remove('active');
+            
+            gameState.screen = name;
+            
+            switch(name) {
+                case 'mainMenu':
+                    document.getElementById('mainMenu').classList.add('active');
+                    break;
+                case 'lobby':
+                    document.getElementById('lobbyScreen').classList.add('active');
+                    break;
+                case 'countdown':
+                    document.getElementById('countdownScreen').classList.add('active');
+                    break;
+                case 'game':
+                    document.getElementById('topHud').style.display = 'flex';
+                    document.getElementById('bottomPanel').classList.add('active');
+                    document.getElementById('racerList').classList.add('active');
+                    break;
+                case 'result':
+                    document.getElementById('resultScreen').classList.add('active');
+                    break;
+            }
+        }
+        
+        // ==================== 載入 ====================
+        function simulateLoading() {
+            let progress = 0;
+            const bar = document.getElementById('loadingBar');
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 25;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        document.getElementById('loadingScreen').style.display = 'none';
+                        showScreen('mainMenu');
+                    }, 300);
+                }
+                bar.style.width = progress + '%';
+            }, 100);
+        }
+        
+        // ==================== 主選單 ====================
+        function createRoom() {
+            myData.name = document.getElementById('playerName').value || '玩家';
+            send({ type: 'createRoom', playerName: myData.name });
+        }
+        
+        function showJoinModal() {
+            document.getElementById('joinModal').classList.add('active');
+        }
+        
+        function hideJoinModal() {
+            document.getElementById('joinModal').classList.remove('active');
+        }
+        
+        function joinRoom() {
+            const code = document.getElementById('joinCode').value.toUpperCase().trim();
+            myData.name = document.getElementById('playerName').value || '玩家';
+            
+            if (code.length !== 4) {
+                showNotification('請輸入4位房間代碼！');
+                return;
+            }
+            
+            send({ type: 'joinRoom', roomCode: code, playerName: myData.name });
+            hideJoinModal();
+        }
+        
+        function copyRoomCode() {
+            const code = gameState.roomCode;
+            if (code) {
+                navigator.clipboard.writeText(code).then(() => showNotification('房間代碼已複製！'));
+            }
+        }
+        
+        function quickMatch() {
+            myData.name = document.getElementById('playerName').value || '玩家';
+            send({ type: 'createRoom', playerName: myData.name });
+            setTimeout(() => {
+                send({ type: 'addAI' });
+                send({ type: 'addAI' });
+                send({ type: 'addAI' });
+                setTimeout(() => {
+                    send({ type: 'toggleReady', ready: true });
+                    setTimeout(() => send({ type: 'startGame' }), 500);
+                }, 300);
+            }, 500);
+        }
+        
+        // ==================== 大廳 ====================
+        function toggleAI() {
+            if (!gameState.isHost) return;
+            
+            const btn = document.getElementById('aiBtn');
+            const hasAI = gameState.players.some(p => p.isAI);
+            
+            if (!hasAI) {
+                send({ type: 'addAI' });
+            } else {
+                send({ type: 'removeAI' });
+            }
+        }
+        
+        function updateLobbyUI() {
+            const grid = document.getElementById('slotsGrid');
+            grid.innerHTML = '';
+            
+            gameState.players.forEach((player, i) => {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                if (player.isAI) slot.classList.add('ai');
+                else slot.classList.add('occupied');
+                if (player.ready) slot.classList.add('ready');
+                
+                const status = player.isAI ? '🤖 AI' : player.ready ? '✅ 已準備' : '⏳ 等待中';
+                const isMe = player.id === gameState.playerId;
+                
+                slot.innerHTML = `
+                    <div class="slot-avatar">${player.avatar}</div>
+                    <div class="slot-name">${player.isAI ? player.name.substring(2) : player.name}${isMe ? ' (你)' : ''}</div>
+                    <div class="slot-status">${status}</div>
+                    ${isMe && !player.ready ? `<label class="slot-check"><input type="checkbox" onchange="toggleReady(this.checked)">準備</label>` : ''}
+                `;
+                grid.appendChild(slot);
+            });
+            
+            // 填充空位
+            for (let i = gameState.players.length; i < 8; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                slot.innerHTML = `<div class="slot-avatar">⭕</div><div class="slot-name">等待中...</div><div class="slot-status">EMPTY</div>`;
+                grid.appendChild(slot);
+            }
+            
+            // AI按
+            const btn = document.getElementById('aiBtn');
+            const hasAI = gameState.players.some(p => p.isAI);
+            if (hasAI) {
+                btn.classList.add('active');
+                btn.textContent = '🤖 AI已啟用';
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = '🤖 添加AI';
+            }
+            
+            // 開始按鈕
+            const startBtn = document.getElementById('startBtn');
+            const ready = gameState.players.filter(p => p.ready).length;
+            
+            if (gameState.isHost) {
+                if (ready >= 2) {
+                    startBtn.disabled = false;
+                    startBtn.textContent = `開始 (${ready})`;
+                } else {
+                    startBtn.disabled = true;
+                    startBtn.textContent = '等待玩家...';
+                }
+            } else {
+                startBtn.disabled = true;
+                startBtn.textContent = '等待房主...';
+            }
+        }
+        
+        function toggleReady(ready) {
+            myData.ready = ready;
+            send({ type: 'toggleReady', ready: ready });
+        }
+        
+        function startGame() {
+            if (!gameState.isHost) return;
+            send({ type: 'startGame' });
+        }
+        
+        function leaveLobby() {
+            ws.close();
+            location.reload();
+        }
+        
+        // ==================== 遊戲 ====================
+        function initGame() {
+            showScreen('game');
+            
+            // 初始化雲朵
+            scene3D.clouds = [];
+            for (let i = 0; i < 12; i++) {
+                scene3D.clouds.push({
+                    x: (Math.random() - 0.5) * 2000,
+                    y: -280 - Math.random() * 150,
+                    z: Math.random() * 1500,
+                    size: 25 + Math.random() * 40,
+                    speed: 0.15 + Math.random() * 0.25
+                });
+            }
+            
+            createRacerList();
+            requestAnimationFrame(gameLoop);
+            requestAnimationFrame(render3D);
+        }
+        
+        function createRacerList() {
+            const list = document.getElementById('racerList');
+            list.innerHTML = '';
+            
+            gameState.players.forEach(player => {
+                const item = document.createElement('div');
+                item.className = 'racer-item';
+                item.id = `racer-${player.id}`;
+                if (player.id === gameState.playerId) item.classList.add('you');
+                
+                item.innerHTML = `
+                    <span class="racer-rank">-</span>
+                    <span class="racer-name">${player.isAI ? player.name.substring(2) : player.name}</span>
+                    <span class="racer-count" id="count-${player.id}">0</span>
+                `;
+                list.appendChild(item);
+            });
+        }
+        
+        function updatePlayerClicks(playerId, clicks) {
+            const player = gameState.players.find(p => p.id === playerId);
+            if (player) player.clicks = clicks;
+        }
+        
+        function updatePlayerFinished(playerId, clicks, finishTime) {
+            const player = gameState.players.find(p => p.id === playerId);
+            if (player) {
+                player.clicks = clicks;
+                player.finished = true;
+                player.finishTime = finishTime;
+            }
+            if (playerId === gameState.playerId) {
+                showNotification('🎉 完成比賽！', 'boost');
+            }
+        }
+        
+        function showPlayerNitro(playerId) {
+            // 可選：顯示其他玩家使用氮氣的特效
+        }
+        
+        // ==================== 遊戲循環 ====================
+        function gameLoop() {
+            if (!gameState.gameStarted || gameState.gameEnded) return;
+            
+            const now = Date.now();
+            const elapsed = now - gameState.startTime;
+            
+            // 時間
+            const sec = Math.floor(elapsed / 1000);
+            const ms = Math.floor((elapsed % 1000) / 10);
+            document.getElementById('hudTime').textContent = 
+                `${sec.toString().padStart(2, '0')}:${ms.toString().padStart(2, '0')}`;
+            
+            // 體力恢復
+            if (myData.stamina < CONFIG.STAMINA_MAX) {
+                myData.stamina += CONFIG.STAMINA_REGEN;
+                if (myData.stamina > CONFIG.STAMINA_MAX) myData.stamina = CONFIG.STAMINA_MAX;
+            }
+            
+            if (myData.nitroCooldown > 0) {
+                myData.nitroCooldown -= 16;
+                if (myData.nitroCooldown < 0) myData.nitroCooldown = 0;
+            }
+            
+            if (myData.nitroActive && myData.nitroCooldown <= CONFIG.NITRO_COOLDOWN) {
+                myData.nitroActive = false;
+            }
+            
+            updateCamera();
+            updateHUD();
+            updateRacerList();
+            
+            if (!gameState.gameEnded) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+        
+        function updateCamera() {
+            const me = gameState.players.find(p => p.id === gameState.playerId);
+            if (me) {
+                const z = (me.clicks / CONFIG.TARGET_CLICKS) * scene3D.trackLength;
+                scene3D.camera.z = 400 + z * 0.7;
+                scene3D.camera.x = me.x || 0;
+            }
+            
+            if (scene3D.shake > 0) {
+                scene3D.camera.x += (Math.random() - 0.5) * scene3D.shake;
+                scene3D.shake *= 0.9;
+                if (scene3D.shake < 0.5) scene3D.shake = 0;
+            }
+        }
+        
+        function updateHUD() {
+            const me = gameState.players.find(p => p.id === gameState.playerId);
+            if (!me) return;
+            
+            document.getElementById('hudClicks').textContent = me.clicks;
+            document.getElementById('hudProgressFill').style.width = (me.clicks / CONFIG.TARGET_CLICKS) * 100 + '%';
+            document.getElementById('hudStaminaFill').style.width = myData.stamina + '%';
+            document.getElementById('hudSpeed').textContent = myData.speed + ' CPS';
+            
+            const sorted = [...gameState.players].sort((a, b) => b.clicks - a.clicks);
+            const myRank = sorted.findIndex(p => p.id === gameState.playerId) + 1;
+            document.getElementById('hudRank').textContent = myRank;
+            document.getElementById('hudTotal').textContent = '/' + gameState.players.length;
+            
+            const speedDeg = Math.min(myData.speed * 8, 270) - 135;
+            document.getElementById('gaugeNeedle').style.transform = `translateX(-50%) rotate(${speedDeg}deg)`;
+            document.getElementById('gaugeValue').textContent = myData.speed;
+            
+            const nitroBtn = document.getElementById('nitroBtn');
+            if (myData.nitroCooldown > 0) {
+                nitroBtn.disabled = true;
+                nitroBtn.textContent = `⏳ ${Math.ceil(myData.nitroCooldown/1000)}s`;
+            } else {
+                nitroBtn.disabled = false;
+                nitroBtn.textContent = '⚡ 加速';
+                nitroBtn.classList.toggle('active', myData.nitroActive);
+            }
+        }
+        
+        function updateRacerList() {
+            const sorted = [...gameState.players].sort((a, b) => b.clicks - a.clicks);
+            
+            sorted.forEach((player, idx) => {
+                const item = document.getElementById(`racer-${player.id}`);
+                const count = document.getElementById(`count-${player.id}`);
+                
+                if (item && count) {
+                    item.querySelector('.racer-rank').textContent = '#' + (idx + 1);
+                    count.textContent = player.clicks;
+                    
+                    if (idx === 0) item.classList.add('leading');
+                    else item.classList.remove('leading');
+                }
+            });
+        }
+        
+        // ==================== 3D渲染 ====================
+        function render3D() {
+            if (!gameState.gameStarted) {
+                requestAnimationFrame(render3D);
+                return;
+            }
+            
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 天空
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, '#0a0a1a');
+            grad.addColorStop(0.5, '#1a0a2e');
+            grad.addColorStop(1, '#2a1a3e');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const cam = scene3D.camera;
+            
+            // 雲朵
+            scene3D.clouds.forEach(cloud => {
+                cloud.x += cloud.speed;
+                if (cloud.x > 1000) cloud.x = -1000;
+                const p = project(cloud.x, cloud.y, cloud.z, cam);
+                if (p) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, cloud.size * p.scale, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            
+            // 賽道網格
+            for (let z = 0; z < scene3D.trackLength; z += 50) {
+                const p1 = project(-500, 0, z, cam);
+                const p2 = project(500, 0, z, cam);
+                if (p1 && p2) {
+                    const alpha = Math.max(0, 1 - z / scene3D.trackLength) * 0.25;
+                    ctx.strokeStyle = `rgba(255,215,0,${alpha})`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                }
+            }
+            
+            // 跑道線
+            for (let x = -400; x <= 400; x += scene3D.laneWidth) {
+                const p1 = project(x, 0, 0, cam);
+                const p2 = project(x, 0, scene3D.trackLength, cam);
+                if (p1 && p2) {
+                    ctx.strokeStyle = 'rgba(255,215,0,0.12)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                }
+            }
+            
+            // 終點線
+            const f1 = project(-400, 0, scene3D.trackLength, cam);
+            const f2 = project(400, 0, scene3D.trackLength, cam);
+            if (f1 && f2) {
+                const stripeW = 18 * f1.scale;
+                const stripes = Math.floor((f2.x - f1.x) / stripeW);
+                for (let i = 0; i < stripes; i++) {
+                    ctx.fillStyle = i % 2 === 0 ? '#000' : '#fff';
+                    ctx.fillRect(f1.x + i * stripeW, f1.y - 4 * f1.scale, stripeW, 8 * f1.scale);
+                }
+                
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 5 * f1.scale;
+                ctx.beginPath();
+                ctx.moveTo(f1.x, f1.y - 100 * f1.scale);
+                ctx.lineTo(f1.x, f1.y);
+                ctx.moveTo(f2.x, f2.y - 100 * f2.scale);
+                ctx.lineTo(f2.x, f2.y);
+                ctx.moveTo(f1.x, f1.y - 100 * f1.scale);
+                ctx.lineTo(f2.x, f2.y - 100 * f2.scale);
+                ctx.stroke();
+                
+                ctx.fillStyle = '#FFD700';
+                ctx.font = `bold ${22 * f1.scale}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#FFD700';
+                ctx.shadowBlur = 15;
+                ctx.fillText('🏁 FINISH', canvas.width / 2, f1.y - 130 * f1.scale);
+                ctx.shadowBlur = 0;
+            }
+            
+            // 賽車
+            gameState.players.forEach((player, i) => {
+                const prog = player.clicks / CONFIG.TARGET_CLICKS;
+                const rz = prog * scene3D.trackLength;
+                const rx = (i - gameState.players.length / 2) * scene3D.laneWidth;
+                
+                const body = project(rx, -30, rz, cam);
+                const shadow = project(rx, 0, rz, cam);
+                
+                if (body && shadow) {
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.beginPath();
+                    ctx.ellipse(shadow.x, shadow.y, 18 * shadow.scale, 8 * shadow.scale, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    const sz = 25 * body.scale;
+                    ctx.shadowColor = player.color;
+                    ctx.shadowBlur = 15;
+                    
+                    ctx.fillStyle = player.color;
+                    ctx.fillRect(body.x - sz/2, body.y - sz, sz, sz * 0.6);
+                    
+                    ctx.fillStyle = lighten(player.color, 30);
+                    ctx.fillRect(body.x - sz/3, body.y - sz * 1.1, sz * 0.66, sz * 0.3);
+                    
+                    ctx.shadowBlur = 0;
+                    
+                    ctx.fillStyle = '#fff';
+                    ctx.font = `bold ${10 * body.scale}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.shadowColor = '#000';
+                    ctx.shadowBlur = 2;
+                    ctx.fillText(player.isAI ? player.name.substring(2) : player.name, body.x, body.y - sz * 1.3);
+                    ctx.shadowBlur = 0;
+                    
+                    ctx.fillStyle = '#FFD700';
+                    ctx.font = `bold ${12 * body.scale}px Arial`;
+                    ctx.fillText(player.clicks, body.x, body.y + 2);
+                }
+            });
+            
+            // 粒子
+            scene3D.particles = scene3D.particles.filter(p => {
+                p.y -= p.vy;
+                p.x += p.vx;
+                p.life -= 0.02;
+                p.vy *= 0.98;
+                
+                const pp = project(p.x, p.y, p.z, cam);
+                if (pp && p.life > 0) {
+                    ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${p.life})`;
+                    ctx.beginPath();
+                    ctx.arc(pp.x, pp.y, p.size * pp.scale, 0, Math.PI * 2);
+                    ctx.fill();
+                    return true;
+                }
+                return false;
+            });
+            
+            if (!gameState.gameEnded) {
+                requestAnimationFrame(render3D);
+            }
+        }
+        
+        function project(x, y, z, cam) {
+            const fov = 900;
+            const dist = z + cam.z;
+            if (dist <= 0) return null;
+            
+            const scale = fov / dist;
+            const px = (x - cam.x) * scale + window.innerWidth / 2;
+            const py = (y - cam.y) * scale + window.innerHeight / 2;
+            
+            return { x: px, y: py, scale: scale };
+        }
+        
+        function lighten(c, p) {
+            const n = parseInt(c.replace('#', ''), 16);
+            const a = Math.round(2.55 * p);
+            const R = Math.min(255, (n >> 16) + a);
+            const G = Math.min(255, (n >> 8 & 0xFF) + a);
+            const B = Math.min(255, (n & 0xFF) + a);
+            return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+        }
+        
+        function addParticle(x, z) {
+            const colors = [{ r: 255, g: 215, b: 0 }, { r: 255, g: 99, b: 71 }, { r: 0, g: 245, b: 255 }];
+            const c = colors[Math.floor(Math.random() * colors.length)];
+            
+            for (let i = 0; i < 3; i++) {
+                scene3D.particles.push({
+                    x: x + (Math.random() - 0.5) * 20,
+                    y: -30, z: z - 10,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: 1.5 + Math.random() * 2,
+                    life: 1, size: 2 + Math.random() * 3,
+                    r: c.r, g: c.g, b: c.b
+                });
+            }
+        }
+        
+        // ==================== 操作 ====================
+        function doClick(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            if (!gameState.gameStarted || gameState.gameEnded) return;
+            
+            const me = gameState.players.find(p => p.id === gameState.playerId);
+            if (!me || me.finished) return;
+            
+            if (myData.stamina < CONFIG.STAMINA_COST) {
+                showNotification('體力不足！', 'boost');
+                return;
+            }
+            
+            const now = Date.now();
+            myData.clickTimes = myData.clickTimes.filter(t => now - t < 1000);
+            myData.clickTimes.push(now);
+            myData.speed = myData.clickTimes.length;
+            
+            myData.stamina -= CONFIG.STAMINA_COST;
+            
+            const mult = myData.nitroActive ? 2 : 1;
+            
+            send({ type: 'playerClick', nitro: myData.nitroActive });
+            
+            const idx = gameState.players.findIndex(p => p.id === gameState.playerId);
+            const rx = (idx - gameState.players.length / 2) * scene3D.laneWidth;
+            const prog = me.clicks / CONFIG.TARGET_CLICKS;
+            addParticle(rx, prog * scene3D.trackLength);
+            
+            scene3D.shake = 2;
+            
+            // 點擊特效
+            const effect = document.createElement('div');
+            effect.className = 'click-effect';
+            effect.textContent = mult === 2 ? '+2' : '+1';
+            
+            let x, y;
+            if (e && e.touches && e.touches[0]) {
+                x = e.touches[0].clientX;
+                y = e.touches[0].clientY;
+            } else if (e && e.clientX) {
+                x = e.clientX; y = e.clientY;
+            } else {
+                const btn = document.getElementById('mainClickBtn');
+                const rect = btn.getBoundingClientRect();
+                x = rect.left + rect.width / 2;
+                y = rect.top;
+            }
+            
+            effect.style.left = x + 'px';
+            effect.style.top = y + 'px';
+            if (mult === 2) {
+                effect.style.color = '#00f5ff';
+                effect.style.textShadow = '0 0 15px #00f5ff';
+            }
+            document.body.appendChild(effect);
+            setTimeout(() => effect.remove(), 600);
+        }
+        
+        function useNitro() {
+            if (myData.nitroCooldown > 0 || myData.nitroActive) return;
+            
+            myData.nitroActive = true;
+            myData.nitroCooldown = CONFIG.NITRO_COOLDOWN + CONFIG.NITRO_DURATION;
+            send({ type: 'useNitro' });
+            showNotification('⚡ 雙倍速度！', 'boost');
+            
+            setTimeout(() => { myData.nitroActive = false; }, CONFIG.NITRO_DURATION);
+        }
+        
+        function rest() {
+            myData.stamina = Math.min(myData.stamina + CONFIG.REST_GAIN, CONFIG.STAMINA_MAX);
+            showNotification(`💪 體力 +${CONFIG.REST_GAIN}`, 'boost');
+        }
+        
+        function showNotification(text, type = '') {
+            const notif = document.getElementById('notification');
+            notif.textContent = text;
+            notif.className = 'notification show ' + type;
+            setTimeout(() => notif.classList.remove('show'), 1500);
+        }
+        
+        // ==================== 結果 ====================
+        function showResults(results) {
+            gameState.gameEnded = true;
+            showScreen('result');
+            
+            const myResult = results.find(r => r.id === gameState.playerId);
+            const myRank = results.findIndex(r => r.id === gameState.playerId) + 1;
+            
+            const title = document.getElementById('resultTitle');
+            const slogan = document.getElementById('victorySlogan');
+            
+            if (myRank === 1) {
+                title.textContent = '🏆 冠軍！';
+                title.className = 'result-title win';
+                slogan.textContent = '一馬當先 業績第一';
+            } else if (myRank === 2) {
+                title.textContent = '🥈 亞軍！';
+                title.className = 'result-title win';
+                slogan.textContent = '再接再厲 更創佳績';
+            } else if (myRank === 3) {
+                title.textContent = '🥉 季軍！';
+                title.className = 'result-title win';
+                slogan.textContent = '穩扎穩打 持續進步';
+            } else {
+                title.textContent = '比賽結束';
+                title.className = 'result-title';
+                title.style.color = '#C0C0C0';
+                slogan.textContent = '勤能補拙 下次再戰';
+            }
+            
+            const grid = document.getElementById('resultGrid');
+            grid.innerHTML = '';
+            
+            results.forEach((r, idx) => {
+                const card = document.createElement('div');
+                card.className = 'result-card' + (r.id === gameState.playerId ? ' highlight' : '');
+                
+                let rank = (idx + 1).toString();
+                if (idx === 0) rank = '🥇';
+                else if (idx === 1) rank = '🥈';
+                else if (idx === 2) rank = '🥉';
+                
+                const time = r.finished ? `⏱ ${(r.finishTime/1000).toFixed(2)}s` : `${r.clicks}次`;
+                
+                card.innerHTML = `
+                    <div class="result-rank ${idx===0?'gold':idx===1?'silver':idx===2?'bronze':''}">${rank}</div>
+                    <div class="result-avatar">${r.isAI?r.avatar:'🏃'}</div>
+                    <div class="result-name">${r.isAI?r.name.substring(2):r.name}</div>
+                    <div class="result-clicks">${r.clicks} 次</div>
+                    <div class="result-time">${time}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+        
+        function backToMenu() {
+            location.reload();
+        }
+        
+        // ==================== Canvas ====================
+        function initCanvas() {
+            const canvas = document.getElementById('gameCanvas');
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+            
+            const ctx = canvas.getContext('2d');
+            function initRender() {
+                if (gameState.gameStarted) return;
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                requestAnimationFrame(initRender);
+            }
+            initRender();
+        }
+        
+        // ==================== 鍵盤 ====================
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.key === ' ') {
+                e.preventDefault();
+                doClick();
+            }
+        });
+        
+        let lastTouch = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTouch <= 300) e.preventDefault();
+            lastTouch = now;
+        }, false);
+        
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        
+        // ==================== 啟動 ====================
+        window.onload = function() {
+            connectWebSocket();
+            simulateLoading();
+            initCanvas();
+        };
+    </script>
+</body>
+</html>
