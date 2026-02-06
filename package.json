@@ -1,0 +1,15 @@
+{
+  "name": "xiang-an-race-server",
+  "version": "1.0.0",
+  "description": "祥安新春開工競賽 - WebSocket 多人連線伺服器",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

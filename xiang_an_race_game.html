@@ -1,0 +1,2124 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>祥安新春開工競賽 - 3D競速對戰</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { 
+            width: 100%; height: 100%; overflow: hidden; background: #000; 
+            touch-action: none; font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif;
+            user-select: none; -webkit-user-select: none;
+        }
+        
+        /* ========== 響應式縮放 ========== */
+        :root { 
+            --scale: 1;
+            --top-bar-height: 45px;
+            --bottom-panel-height: 160px;
+        }
+        @media (max-width: 768px) { 
+            :root { 
+                --scale: 0.85; 
+                --bottom-panel-height: 180px;
+            } 
+        }
+        @media (max-width: 480px) { 
+            :root { 
+                --scale: 0.7; 
+                --top-bar-height: 40px;
+                --bottom-panel-height: 200px;
+            } 
+        }
+        
+        /* ========== Canvas 全畫面 ========== */
+        #gameCanvas { 
+            position: fixed; 
+            top: var(--top-bar-height); 
+            left: 0; 
+            width: 100%; 
+            height: calc(100% - var(--top-bar-height) - var(--bottom-panel-height)); 
+            z-index: 1; 
+        }
+        
+        /* ========== 頂部信息條 (極簡) ========== */
+        .top-hud {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: var(--top-bar-height);
+            background: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.6));
+            border-bottom: 1px solid rgba(255,215,0,0.3);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+        }
+        
+        .hud-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .hud-logo {
+            font-size: calc(0.9rem * var(--scale));
+            color: #FFD700;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            text-shadow: 0 0 10px #FFD700;
+        }
+        
+        .hud-rank {
+            display: flex;
+            align-items: baseline;
+            gap: 5px;
+        }
+        .hud-rank-num {
+            font-size: calc(1.8rem * var(--scale));
+            color: #FFD700;
+            font-weight: 900;
+            text-shadow: 0 0 15px #FFD700;
+        }
+        .hud-rank-total {
+            font-size: calc(0.9rem * var(--scale));
+            color: #888;
+        }
+        
+        .hud-center {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+        
+        .hud-progress {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .hud-clicks {
+            font-size: calc(2rem * var(--scale));
+            color: #fff;
+            font-weight: 900;
+            font-family: monospace;
+        }
+        .hud-target {
+            font-size: calc(1rem * var(--scale));
+            color: #888;
+        }
+        .hud-progress-bar {
+            width: 120px;
+            height: 8px;
+            background: #222;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .hud-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #FFD700, #FF6347);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+        
+        .hud-time {
+            font-size: calc(1.2rem * var(--scale));
+            color: #00f5ff;
+            font-family: monospace;
+            font-weight: 700;
+        }
+        
+        .hud-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .hud-stamina {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .hud-stamina-label {
+            font-size: calc(0.7rem * var(--scale));
+            color: #888;
+        }
+        .hud-stamina-bar {
+            width: 80px;
+            height: 6px;
+            background: #222;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .hud-stamina-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c);
+            width: 100%;
+            transition: width 0.2s;
+        }
+        
+        .hud-speed {
+            font-size: calc(1rem * var(--scale));
+            color: #FFD700;
+            font-weight: 700;
+        }
+        
+        /* ========== 底部操作面板 ========== */
+        .bottom-panel {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: var(--bottom-panel-height);
+            background: linear-gradient(0deg, rgba(0,0,0,0.95), rgba(0,0,0,0.7));
+            border-top: 2px solid rgba(255,215,0,0.4);
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 20px;
+            gap: 15px;
+        }
+        .bottom-panel.active { display: flex; }
+        
+        .panel-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+        
+        /* 速度表 */
+        .speed-gauge {
+            width: calc(90px * var(--scale));
+            height: calc(90px * var(--scale));
+            min-width: 70px;
+            min-height: 70px;
+            border-radius: 50%;
+            border: 3px solid #FFD700;
+            position: relative;
+            background: radial-gradient(circle, #1a1a2e 0%, #000 100%);
+            box-shadow: 0 0 20px rgba(255,215,0,0.3);
+        }
+        .gauge-needle {
+            position: absolute;
+            bottom: 50%; left: 50%;
+            width: 3px; height: 42%;
+            background: linear-gradient(to top, #FFD700, #FF6347);
+            transform-origin: bottom;
+            transform: translateX(-50%) rotate(-135deg);
+            transition: transform 0.1s;
+        }
+        .gauge-center {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        .gauge-value {
+            font-size: calc(1.3rem * var(--scale));
+            color: #FFD700;
+            font-weight: 900;
+        }
+        .gauge-label {
+            font-size: calc(0.6rem * var(--scale));
+            color: #888;
+        }
+        
+        /* 主點擊按鈕 */
+        .main-click-btn {
+            width: calc(120px * var(--scale));
+            height: calc(120px * var(--scale));
+            min-width: 90px;
+            min-height: 90px;
+            border-radius: 50%;
+            border: 4px solid #FFD700;
+            background: linear-gradient(135deg, rgba(255,215,0,0.8), rgba(255,99,71,0.5));
+            color: #fff;
+            font-size: calc(1.5rem * var(--scale));
+            font-weight: 900;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            box-shadow: 0 0 30px rgba(255,215,0,0.5);
+            animation: pulse-btn 1.5s infinite;
+            transition: transform 0.1s;
+        }
+        .main-click-btn:active {
+            transform: scale(0.95);
+            background: linear-gradient(135deg, rgba(255,215,0,1), rgba(255,99,71,0.7));
+        }
+        @keyframes pulse-btn {
+            0%, 100% { box-shadow: 0 0 30px rgba(255,215,0,0.5); }
+            50% { box-shadow: 0 0 50px rgba(255,215,0,0.8); }
+        }
+        .click-icon { font-size: calc(2rem * var(--scale)); }
+        .click-text { font-size: calc(0.9rem * var(--scale)); }
+        
+        /* 輔助按鈕 */
+        .side-btns {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .side-btn {
+            padding: 10px 18px;
+            background: rgba(255,255,255,0.08);
+            border: 2px solid #444;
+            color: #fff;
+            border-radius: 20px;
+            font-size: calc(0.8rem * var(--scale));
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .side-btn:hover { border-color: #FFD700; background: rgba(255,215,0,0.1); }
+        .side-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .side-btn.active {
+            border-color: #00f5ff;
+            background: rgba(0,245,255,0.2);
+            color: #00f5ff;
+        }
+        
+        /* ========== 觀戰面板 ========== */
+        .spectate-panel {
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: var(--bottom-panel-height);
+            background: linear-gradient(0deg, rgba(0,0,0,0.95), rgba(0,0,0,0.7));
+            border-top: 2px solid #00f5ff;
+            z-index: 100;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        .spectate-panel.active { display: flex; }
+        
+        .spectate-title {
+            font-size: calc(1rem * var(--scale));
+            color: #00f5ff;
+            font-weight: 700;
+        }
+        
+        .spectate-btns {
+            display: flex;
+            gap: 15px;
+        }
+        .spectate-btn {
+            padding: 12px 25px;
+            background: rgba(0,245,255,0.2);
+            border: 2px solid #00f5ff;
+            color: #00f5ff;
+            border-radius: 25px;
+            font-size: calc(0.9rem * var(--scale));
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .spectate-btn:hover { background: rgba(0,245,255,0.4); }
+        
+        .spectate-target {
+            font-size: calc(0.9rem * var(--scale));
+            color: #fff;
+        }
+        .spectate-target span {
+            color: #FFD700;
+            font-weight: 700;
+        }
+        
+        /* ========== 玩家進度列表 (右側浮動) ========== */
+        .racer-list {
+            position: fixed;
+            top: calc(var(--top-bar-height) + 10px);
+            right: 10px;
+            width: 140px;
+            max-height: calc(100% - var(--top-bar-height) - var(--bottom-panel-height) - 20px);
+            background: rgba(0,0,0,0.8);
+            border: 1px solid rgba(255,215,0,0.3);
+            border-radius: 10px;
+            z-index: 50;
+            display: none;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .racer-list.active { display: block; }
+        .racer-list::-webkit-scrollbar { width: 3px; }
+        .racer-list::-webkit-scrollbar-thumb { background: #FFD700; border-radius: 2px; }
+        
+        .racer-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            margin-bottom: 4px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            font-size: calc(0.7rem * var(--scale));
+        }
+        .racer-item.leading {
+            background: rgba(255,215,0,0.15);
+            border: 1px solid #FFD700;
+        }
+        .racer-item.you { border-color: #2ecc71; }
+        .racer-rank {
+            color: #FFD700;
+            font-weight: 900;
+            min-width: 18px;
+        }
+        .racer-name {
+            color: #fff;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .racer-count {
+            color: #00f5ff;
+            font-weight: 700;
+            font-family: monospace;
+        }
+        
+        /* ========== 載入畫面 ========== */
+        .loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #8B0000 0%, #DC143C 50%, #8B0000 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 9999;
+        }
+        .loading-logo {
+            width: calc(150px * var(--scale)); height: calc(150px * var(--scale));
+            background: url('xiang_an_logo.png') center/contain no-repeat;
+            filter: drop-shadow(0 0 30px rgba(255,215,0,0.8));
+            animation: logoPulse 2s ease-in-out infinite;
+        }
+        @keyframes logoPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .loading-title {
+            font-size: calc(2.5rem * var(--scale));
+            color: #FFD700;
+            text-shadow: 0 0 20px #FFD700;
+            margin-top: 15px;
+            font-weight: 900;
+            letter-spacing: 0.2em;
+        }
+        .loading-subtitle {
+            font-size: calc(1.2rem * var(--scale));
+            color: #FFF;
+            margin-top: 8px;
+            letter-spacing: 0.3em;
+        }
+        .loading-bar-bg {
+            width: min(300px, 70vw); height: 10px;
+            background: rgba(0,0,0,0.5); margin-top: 30px;
+            border-radius: 5px; overflow: hidden; border: 2px solid #FFD700;
+        }
+        .loading-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #FFD700, #FFA500, #FFD700);
+            width: 0%; transition: width 0.3s;
+        }
+        .loading-text {
+            margin-top: 15px; color: #FFD700; font-size: calc(0.9rem * var(--scale));
+            letter-spacing: 0.2em;
+        }
+        
+        /* ========== 主選單 ========== */
+        .main-menu {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(180deg, #8B0000 0%, #4a0000 100%);
+            display: none; z-index: 200; justify-content: center; align-items: center;
+            padding: 15px;
+        }
+        .main-menu.active { display: flex; }
+        .menu-container {
+            text-align: center; width: 100%; max-width: 450px;
+            background: rgba(0,0,0,0.3);
+            padding: 30px;
+            border-radius: 20px;
+            border: 2px solid rgba(255,215,0,0.3);
+        }
+        .menu-logo {
+            width: calc(100px * var(--scale)); height: calc(100px * var(--scale));
+            background: url('xiang_an_logo.png') center/contain no-repeat;
+            margin: 0 auto 15px;
+            filter: drop-shadow(0 0 20px rgba(255,215,0,0.6));
+        }
+        .menu-title {
+            font-size: calc(2.2rem * var(--scale));
+            color: #FFD700;
+            letter-spacing: 0.15em;
+            text-shadow: 0 0 20px #FFD700;
+            font-weight: 900;
+            margin-bottom: 5px;
+        }
+        .menu-subtitle {
+            font-size: calc(1rem * var(--scale));
+            color: #FFF;
+            letter-spacing: 0.4em;
+            margin-bottom: 25px;
+        }
+        .name-input {
+            padding: 12px 20px; background: rgba(0,0,0,0.4);
+            border: 2px solid #FFD700; color: #FFD700;
+            font-size: calc(1rem * var(--scale)); border-radius: 8px;
+            text-align: center; width: 220px; margin-bottom: 20px;
+            outline: none;
+        }
+        .name-input::placeholder { color: rgba(255,215,0,0.5); }
+        .menu-btns { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+        .menu-btn {
+            width: min(280px, 80vw); padding: calc(14px * var(--scale));
+            background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,99,71,0.2));
+            border: 2px solid #FFD700; color: #FFD700;
+            font-size: calc(1rem * var(--scale)); font-weight: 900;
+            letter-spacing: 0.15em;
+            cursor: pointer; transition: all 0.3s; border-radius: 8px;
+        }
+        .menu-btn:hover {
+            background: linear-gradient(135deg, rgba(255,215,0,0.4), rgba(255,99,71,0.4));
+            transform: scale(1.02);
+            box-shadow: 0 0 20px rgba(255,215,0,0.4);
+        }
+        
+        /* ========== 大廳 ========== */
+        .lobby-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(180deg, #1a0000 0%, #0a0000 100%);
+            display: none; z-index: 200; padding: 15px; overflow-y: auto;
+        }
+        .lobby-screen.active { display: block; }
+        .lobby-header { text-align: center; margin-bottom: 15px; padding: 10px; }
+        .lobby-title {
+            font-size: calc(1.8rem * var(--scale));
+            color: #FFD700; letter-spacing: 0.2em;
+            text-shadow: 0 0 15px #FFD700;
+        }
+        .lobby-code {
+            font-size: calc(1rem * var(--scale)); color: #00f5ff;
+            margin-top: 10px; padding: 10px 25px;
+            background: rgba(0,245,255,0.1); border: 2px solid #00f5ff;
+            display: inline-block; font-family: monospace; cursor: pointer;
+            border-radius: 6px;
+        }
+        .lobby-target {
+            color: #AAA; margin-top: 10px; font-size: calc(0.9rem * var(--scale));
+        }
+        .lobby-target span { color: #FFD700; font-weight: 900; }
+        
+        .slots-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            max-width: 550px;
+            margin: 15px auto;
+        }
+        @media (max-width: 550px) { .slots-grid { grid-template-columns: repeat(2, 1fr); } }
+        
+        .slot {
+            height: calc(110px * var(--scale)); min-height: 80px;
+            background: rgba(255,255,255,0.03); border: 2px solid #333;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 10px; padding: 5px; transition: all 0.3s;
+        }
+        .slot.occupied { border-color: #FFD700; background: rgba(255,215,0,0.08); }
+        .slot.ready { border-color: #00f5ff; box-shadow: 0 0 15px rgba(0,245,255,0.3); }
+        .slot.ai { border-color: #8338ec; background: rgba(131,56,236,0.1); }
+        .slot.spectator { border-color: #888; background: rgba(136,136,136,0.1); opacity: 0.7; }
+        .slot-avatar { font-size: calc(2rem * var(--scale)); margin-bottom: 3px; }
+        .slot-name {
+            font-size: calc(0.7rem * var(--scale)); color: #fff;
+            text-align: center; word-break: break-all; font-weight: 700;
+        }
+        .slot-status {
+            font-size: calc(0.6rem * var(--scale)); color: #888; text-transform: uppercase;
+            margin-top: 3px;
+        }
+        .slot-check {
+            margin-top: 5px; display: flex; align-items: center;
+            gap: 4px; color: #fff; font-size: calc(0.65rem * var(--scale)); cursor: pointer;
+        }
+        
+        .lobby-controls {
+            display: flex; gap: 10px; justify-content: center;
+            margin-top: 20px; flex-wrap: wrap;
+        }
+        .lobby-ctrl-btn {
+            padding: calc(12px * var(--scale)) calc(20px * var(--scale));
+            font-size: calc(0.85rem * var(--scale)); font-weight: 900;
+            cursor: pointer; border: 2px solid; border-radius: 6px;
+            min-width: 100px; transition: all 0.3s;
+        }
+        .lobby-ctrl-btn.start {
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            border-color: #FFD700; color: #000;
+        }
+        .lobby-ctrl-btn.start:disabled {
+            background: #222; border-color: #333; color: #555; cursor: not-allowed;
+        }
+        .lobby-ctrl-btn.cancel { background: transparent; border-color: #444; color: #888; }
+        .lobby-ctrl-btn.ai { background: rgba(131,56,236,0.2); border-color: #8338ec; color: #8338ec; }
+        .lobby-ctrl-btn.ai.active { background: #8338ec; color: #fff; }
+        .lobby-ctrl-btn.spec { background: rgba(136,136,136,0.2); border-color: #888; color: #888; }
+        .lobby-ctrl-btn.spec.active { background: #888; color: #fff; }
+        
+        /* ========== 倒數畫面 ========== */
+        .countdown-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.98); display: none;
+            justify-content: center; align-items: center; z-index: 400; flex-direction: column;
+        }
+        .countdown-screen.active { display: flex; }
+        .countdown-num {
+            font-size: calc(18rem * var(--scale)); font-weight: 900;
+            color: #FFD700; text-shadow: 0 0 100px #FFD700;
+            animation: countPulse 0.8s ease-out;
+        }
+        @keyframes countPulse {
+            0% { transform: scale(0) rotate(-10deg); opacity: 0; }
+            50% { transform: scale(1.3) rotate(5deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .countdown-text {
+            font-size: calc(1.8rem * var(--scale)); color: #00f5ff;
+            letter-spacing: 0.5em; text-transform: uppercase; margin-top: 20px;
+        }
+        
+        /* ========== 結果畫面 ========== */
+        .result-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(180deg, #8B0000 0%, #4a0000 100%);
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 500; padding: 15px; overflow-y: auto;
+        }
+        .result-screen.active { display: flex; }
+        .result-title {
+            font-size: calc(3.5rem * var(--scale)); font-weight: 900;
+            text-transform: uppercase; margin-bottom: 15px; letter-spacing: 0.2em;
+        }
+        .result-title.win {
+            color: #FFD700; text-shadow: 0 0 40px #FFD700;
+            animation: titlePulse 2s infinite;
+        }
+        @keyframes titlePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .victory-slogan {
+            font-size: calc(1.5rem * var(--scale));
+            color: #FFD700;
+            text-shadow: 0 0 20px #FFD700;
+            margin-bottom: 25px;
+            letter-spacing: 0.2em;
+        }
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px; margin-bottom: 25px; max-width: 800px; width: 100%;
+        }
+        @media (max-width: 800px) { .result-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 400px) { .result-grid { grid-template-columns: 1fr; } }
+        .result-card {
+            background: rgba(255,255,255,0.05); border: 2px solid #333;
+            padding: 15px; text-align: center; border-radius: 10px;
+        }
+        .result-card.highlight {
+            border-color: #FFD700; background: rgba(255,215,0,0.15);
+            transform: scale(1.05);
+        }
+        .result-rank { font-size: calc(2rem * var(--scale)); font-weight: 900; margin-bottom: 8px; }
+        .result-rank.gold { color: #FFD700; text-shadow: 0 0 15px #FFD700; }
+        .result-rank.silver { color: #C0C0C0; }
+        .result-rank.bronze { color: #CD7F32; }
+        .result-avatar { font-size: calc(2.2rem * var(--scale)); margin: 8px 0; }
+        .result-name { font-size: calc(0.85rem * var(--scale)); color: #aaa; margin-bottom: 5px; }
+        .result-clicks { font-size: calc(1.2rem * var(--scale)); color: #FFD700; font-weight: 900; }
+        .result-time { font-size: calc(0.75rem * var(--scale)); color: #00f5ff; margin-top: 5px; }
+        .result-btn {
+            padding: calc(14px * var(--scale)) calc(35px * var(--scale));
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            border: none; color: #000; font-size: calc(1rem * var(--scale));
+            font-weight: 900; cursor: pointer; border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(255,215,0,0.5);
+        }
+        .result-btn:hover { transform: scale(1.05); }
+        
+        /* ========== 通知 ========== */
+        .notification {
+            position: fixed; top: calc(var(--top-bar-height) + 10px); left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.95); border: 2px solid #FFD700;
+            padding: 10px 25px; font-size: calc(1rem * var(--scale));
+            font-weight: 900; color: #FFD700;
+            opacity: 0; transition: all 0.3s; z-index: 300;
+            border-radius: 8px; pointer-events: none;
+            text-shadow: 0 0 15px #FFD700;
+        }
+        .notification.show { opacity: 1; }
+        .notification.boost { color: #00f5ff; border-color: #00f5ff; text-shadow: 0 0 15px #00f5ff; }
+        
+        /* ========== 點擊特效 ========== */
+        .click-effect {
+            position: absolute; pointer-events: none; color: #FFD700;
+            font-size: calc(1.5rem * var(--scale)); font-weight: 900;
+            animation: floatUp 0.6s ease-out forwards; z-index: 200;
+            text-shadow: 0 0 15px #FFD700;
+        }
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-60px) scale(1.3); }
+        }
+        
+        /* ========== Modal ========== */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); display: none;
+            justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: linear-gradient(135deg, #1a0000, #0a0000);
+            border: 2px solid #FFD700; padding: 25px; border-radius: 12px;
+            text-align: center; max-width: 350px; width: 90%;
+        }
+        .modal-title { color: #FFD700; font-size: calc(1.3rem * var(--scale)); margin-bottom: 20px; font-weight: 900; }
+        .modal-input {
+            width: 100%; padding: 12px; background: rgba(0,0,0,0.5);
+            border: 2px solid #444; color: #FFD700;
+            font-size: calc(1.1rem * var(--scale)); border-radius: 8px;
+            margin-bottom: 20px; text-align: center;
+            outline: none;
+        }
+        .modal-btns { display: flex; gap: 12px; justify-content: center; }
+        .modal-btn {
+            padding: 10px 25px; background: linear-gradient(135deg, #FFD700, #FFA500);
+            border: none; color: #000; font-size: calc(0.9rem * var(--scale));
+            font-weight: 900; cursor: pointer; border-radius: 6px;
+        }
+        .modal-btn.secondary { background: transparent; border: 2px solid #444; color: #888; }
+        
+        /* ========== 音樂控制 ========== */
+        .music-control {
+            position: fixed;
+            top: calc(var(--top-bar-height) + 10px);
+            left: 10px;
+            z-index: 60;
+            display: none;
+        }
+        .music-control.active { display: block; }
+        .music-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.8);
+            border: 2px solid #FFD700;
+            color: #FFD700;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .music-btn.muted { opacity: 0.5; border-color: #666; color: #666; }
+    </style>
+</head>
+<body>
+    <!-- Canvas -->
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- 頂部 HUD -->
+    <div class="top-hud" id="topHud" style="display:none;">
+        <div class="hud-left">
+            <div class="hud-logo">祥安競賽</div>
+            <div class="hud-rank">
+                <span class="hud-rank-num" id="hudRank">-</span>
+                <span class="hud-rank-total" id="hudTotal">/-</span>
+            </div>
+        </div>
+        <div class="hud-center">
+            <div class="hud-progress">
+                <span class="hud-clicks" id="hudClicks">0</span>
+                <span class="hud-target">/300</span>
+                <div class="hud-progress-bar">
+                    <div class="hud-progress-fill" id="hudProgressFill"></div>
+                </div>
+            </div>
+            <div class="hud-time" id="hudTime">00:00</div>
+        </div>
+        <div class="hud-right">
+            <div class="hud-stamina">
+                <span class="hud-stamina-label">體力</span>
+                <div class="hud-stamina-bar">
+                    <div class="hud-stamina-fill" id="hudStaminaFill"></div>
+                </div>
+            </div>
+            <div class="hud-speed" id="hudSpeed">0 CPS</div>
+        </div>
+    </div>
+    
+    <!-- 音樂控制 -->
+    <div class="music-control" id="musicControl">
+        <button class="music-btn" id="musicBtn" onclick="toggleMusic()">🎵</button>
+    </div>
+    
+    <!-- 玩家列表 -->
+    <div class="racer-list" id="racerList"></div>
+    
+    <!-- 底部操作面板 -->
+    <div class="bottom-panel" id="bottomPanel">
+        <div class="panel-row">
+            <div class="speed-gauge">
+                <div class="gauge-needle" id="gaugeNeedle"></div>
+                <div class="gauge-center">
+                    <div class="gauge-value" id="gaugeValue">0</div>
+                    <div class="gauge-label">CPS</div>
+                </div>
+            </div>
+            <button class="main-click-btn" id="mainClickBtn" onmousedown="doClick()" ontouchstart="doClick(event)">
+                <span class="click-icon">👆</span>
+                <span class="click-text">點擊</span>
+            </button>
+            <div class="side-bts">
+                <button class="side-btn" id="nitroBtn" onclick="useNitro()">⚡ 加速</button>
+                <button class="side-btn" onclick="rest()">💪 休息</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 觀戰面板 -->
+    <div class="spectate-panel" id="spectatePanel">
+        <div class="spectate-title">👁️ 觀戰模式</div>
+        <div class="spectate-btns">
+            <button class="spectate-btn" onclick="spectatePrev()">◀ 上一個</button>
+            <button class="spectate-btn" onclick="spectateLeader()">🏆 領先者</button>
+            <button class="spectate-btn" onclick="spectateNext()">下一個 ▶</button>
+        </div>
+        <div class="spectate-target">正在觀看: <span id="spectateName">-</span></div>
+    </div>
+    
+    <!-- 載入畫面 -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-logo"></div>
+        <div class="loading-title">祥安</div>
+        <div class="loading-subtitle">新春開工競賽</div>
+        <div class="loading-bar-bg"><div class="loading-bar" id="loadingBar"></div></div>
+        <div class="loading-text" id="loadingText">系統初始化中...</div>
+    </div>
+    
+    <!-- 主選單 -->
+    <div class="main-menu" id="mainMenu">
+        <div class="menu-container">
+            <div class="menu-logo"></div>
+            <div class="menu-title">新春開工競賽</div>
+            <div class="menu-subtitle">3D競速對戰</div>
+            <input type="text" class="name-input" id="playerName" placeholder="輸入你的名字" maxlength="8" value="玩家">
+            <div class="menu-btns">
+                <button class="menu-btn" onclick="createRoom()">🎮 創建房間</button>
+                <button class="menu-btn" onclick="showJoinModal()">🔗 加入房間</button>
+                <button class="menu-btn" onclick="quickMatch()">⚡ 快速匹配 (AI)</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 大廳 -->
+    <div class="lobby-screen" id="lobbyScreen">
+        <div class="lobby-header">
+            <div class="lobby-title">遊戲大廳</div>
+            <div class="lobby-code" id="lobbyCode" onclick="copyRoomCode()">ROOM: ----</div>
+            <div class="lobby-target">目標：先點滿 <span>300</span> 次點擊！</div>
+        </div>
+        <div class="slots-grid" id="slotsGrid"></div>
+        <div class="lobby-controls">
+            <button class="lobby-ctrl-btn ai" id="aiBtn" onclick="toggleAI()">🤖 添加AI</button>
+            <button class="lobby-ctrl-btn spec" id="specBtn" onclick="toggleSpectate()">👁️ 觀戰</button>
+            <button class="lobby-ctrl-btn start" id="startBtn" onclick="startGame()" disabled>等待玩家...</button>
+            <button class="lobby-ctrl-btn cancel" onclick="leaveLobby()">離開</button>
+        </div>
+    </div>
+    
+    <!-- 加入Modal -->
+    <div class="modal-overlay" id="joinModal">
+        <div class="modal-box">
+            <div class="modal-title">加入房間</div>
+            <input type="text" class="modal-input" id="joinCode" placeholder="輸入4位代碼" maxlength="4">
+            <div class="modal-bts">
+                <button class="modal-btn secondary" onclick="hideJoinModal()">取消</button>
+                <button class="modal-btn" onclick="joinRoom()">加入</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 倒數畫面 -->
+    <div class="countdown-screen" id="countdownScreen">
+        <div class="countdown-num" id="countdownNum">3</div>
+        <div class="countdown-text">準備開始</div>
+    </div>
+    
+    <!-- 結果畫面 -->
+    <div class="result-screen" id="resultScreen">
+        <div class="result-title" id="resultTitle">比賽結束！</div>
+        <div class="victory-slogan" id="victorySlogan"></div>
+        <div class="result-grid" id="resultGrid"></div>
+        <button class="result-btn" onclick="backToMenu()">返回主選單</button>
+    </div>
+    
+    <!-- 通知 -->
+    <div class="notification" id="notification"></div>
+
+    <script>
+
+        // ==================== 配置 ====================
+        const CONFIG = {
+            TARGET_CLICKS: 300,
+            MAX_RACERS: 8,
+            COUNTDOWN_TIME: 3,
+            NITRO_COOLDOWN: 8000,
+            NITRO_DURATION: 3000,
+            STAMINA_MAX: 100,
+            STAMINA_REGEN: 0.8,
+            STAMINA_COST: 3,
+            REST_GAIN: 25
+        };
+
+        // ==================== 狀態 ====================
+        let gameState = {
+            screen: 'loading',
+            racers: [],
+            spectator: null,
+            isHost: false,
+            gameStarted: false,
+            startTime: 0,
+            gameEnded: false,
+            aiTimeouts: [],
+            spectateTarget: null,
+            camera: { x: 0, y: -200, z: 400 },
+            musicPlaying: true
+        };
+
+        let myData = {
+            name: '玩家',
+            clicks: 0,
+            speed: 0,
+            stamina: 100,
+            nitroActive: false,
+            nitroCooldown: 0,
+            clickTimes: [],
+            ready: false
+        };
+
+        // AI配置
+        const AI_BOTS = [
+            { name: '⚡閃電俠', baseSpeed: 8.5, variance: 0.85, burst: 0.3, color: '#FFD700' },
+            { name: '👑快打王', baseSpeed: 7.8, variance: 0.9, burst: 0.25, color: '#C0C0C0' },
+            { name: '🤖連點機', baseSpeed: 7.2, variance: 0.95, burst: 0.2, color: '#CD7F32' },
+            { name: '💨風之子', baseSpeed: 6.8, variance: 0.88, burst: 0.18, color: '#00f5ff' },
+            { name: '🎯神射手', baseSpeed: 6.2, variance: 0.92, burst: 0.12, color: '#ff006e' },
+            { name: '🐢穩健者', baseSpeed: 5.5, variance: 0.97, burst: 0.08, color: '#2ecc71' },
+            { name: '🎮練習生', baseSpeed: 4.8, variance: 0.9, burst: 0.05, color: '#8338ec' }
+        ];
+
+        // 3D場景
+        let scene3D = {
+            trackLength: 1200,
+            laneWidth: 90,
+            particles: [],
+            clouds: [],
+            shake: 0
+        };
+
+        // 音樂
+        let bgMusic = null;
+
+        // ==================== 初始化 ====================
+        window.onload = function() {
+            simulateLoading();
+            initCanvas();
+            initClouds();
+            initMusic();
+        };
+
+        // ==================== 音樂 ====================
+        function initMusic() {
+            // 創建簡單的新春音樂（使用Web Audio API生成）
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            
+            // 簡單的節奏循環
+            bgMusic = {
+                ctx: new AudioContext(),
+                playing: false,
+                osc: null,
+                gain: null,
+                nextNote: 0,
+                notes: [
+                    { f: 523.25, d: 0.2 }, // C5
+                    { f: 587.33, d: 0.2 }, // D5
+                    { f: 659.25, d: 0.2 }, // E5
+                    { f: 783.99, d: 0.3 }, // G5
+                    { f: 659.25, d: 0.2 }, // E5
+                    { f: 587.33, d: 0.2 }, // D5
+                ]
+            };
+        }
+
+        function playMusicLoop() {
+            if (!bgMusic || !bgMusic.playing) return;
+            
+            const now = bgMusic.ctx.currentTime;
+            const note = bgMusic.notes[bgMusic.nextNote % bgMusic.notes.length];
+            
+            const osc = bgMusic.ctx.createOscillator();
+            const gain = bgMusic.ctx.createGain();
+            
+            osc.type = 'sine';
+            osc.frequency.value = note.f;
+            
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + note.d);
+            
+            osc.connect(gain);
+            gain.connect(bgMusic.ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + note.d);
+            
+            bgMusic.nextNote++;
+            setTimeout(playMusicLoop, note.d * 1000);
+        }
+
+        function toggleMusic() {
+            if (!bgMusic) return;
+            
+            gameState.musicPlaying = !gameState.musicPlaying;
+            const btn = document.getElementById('musicBtn');
+            
+            if (gameState.musicPlaying) {
+                btn.classList.remove('muted');
+                btn.textContent = '🎵';
+                if (bgMusic.ctx.state === 'suspended') {
+                    bgMusic.ctx.resume();
+                }
+                if (!bgMusic.playing) {
+                    bgMusic.playing = true;
+                    playMusicLoop();
+                }
+            } else {
+                btn.classList.add('muted');
+                btn.textContent = '🔇';
+                bgMusic.playing = false;
+            }
+        }
+
+        function startMusic() {
+            if (!bgMusic || !gameState.musicPlaying) return;
+            
+            if (bgMusic.ctx.state === 'suspended') {
+                bgMusic.ctx.resume();
+            }
+            bgMusic.playing = true;
+            bgMusic.nextNote = 0;
+            playMusicLoop();
+        }
+
+        // ==================== 載入 ====================
+        function simulateLoading() {
+            let progress = 0;
+            const bar = document.getElementById('loadingBar');
+            const texts = ['系統初始化中...', '載入3D引擎...', '生成賽道...', '準備就緒！'];
+            let idx = 0;
+            
+            const interval = setInterval(() => {
+                progress += Math.random() * 20;
+                if (progress >= 25 && idx === 0) idx = 1;
+                if (progress >= 50 && idx === 1) idx = 2;
+                if (progress >= 75 && idx === 2) idx = 3;
+                document.getElementById('loadingText').textContent = texts[idx];
+                
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        document.getElementById('loadingScreen').style.display = 'none';
+                        showScreen('mainMenu');
+                    }, 500);
+                }
+                bar.style.width = progress + '%';
+            }, 120);
+        }
+
+        function initClouds() {
+            for (let i = 0; i < 12; i++) {
+                scene3D.clouds.push({
+                    x: (Math.random() - 0.5) * 2000,
+                    y: -280 - Math.random() * 150,
+                    z: Math.random() * 1500,
+                    size: 25 + Math.random() * 40,
+                    speed: 0.15 + Math.random() * 0.25
+                });
+            }
+        }
+
+        // ==================== 畫面切換 ====================
+        function showScreen(name) {
+            document.querySelectorAll('.loading-screen, .main-menu, .lobby-screen, .countdown-screen, .result-screen').forEach(el => el.classList.remove('active'));
+            document.getElementById('topHud').style.display = 'none';
+            document.getElementById('bottomPanel').classList.remove('active');
+            document.getElementById('spectatePanel').classList.remove('active');
+            document.getElementById('racerList').classList.remove('active');
+            document.getElementById('musicControl').classList.remove('active');
+            
+            gameState.screen = name;
+            
+            switch(name) {
+                case 'mainMenu':
+                    document.getElementById('mainMenu').classList.add('active');
+                    break;
+                case 'lobby':
+                    document.getElementById('lobbyScreen').classList.add('active');
+                    break;
+                case 'countdown':
+                    document.getElementById('countdownScreen').classList.add('active');
+                    break;
+                case 'game':
+                    document.getElementById('topHud').style.display = 'flex';
+                    document.getElementById('racerList').classList.add('active');
+                    document.getElementById('musicControl').classList.add('active');
+                    if (gameState.spectator && gameState.spectator.isYou) {
+                        document.getElementById('spectatePanel').classList.add('active');
+                    } else {
+                        document.getElementById('bottomPanel').classList.add('active');
+                    }
+                    startMusic();
+                    break;
+                case 'result':
+                    document.getElementById('resultScreen').classList.add('active');
+                    break;
+            }
+        }
+
+        // ==================== 主選單 ====================
+        function createRoom() {
+            myData.name = document.getElementById('playerName').value || '玩家';
+            gameState.roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+            gameState.isHost = true;
+            gameState.spectator = null;
+            gameState.racers = [{
+                id: 0, name: myData.name, avatar: '🏃',
+                isAI: false, isYou: true, ready: false,
+                clicks: 0, finished: false, finishTime: 0,
+                color: '#2ecc71', x: 0
+            }];
+            
+            // 保存房間供其他人加入
+            createdRooms[gameState.roomCode] = {
+                racers: JSON.parse(JSON.stringify(gameState.racers)),
+                createdAt: Date.now()
+            };
+            
+            updateLobby();
+            showScreen('lobby');
+            document.getElementById('lobbyCode').textContent = `ROOM: ${gameState.roomCode}`;
+            showNotification('房間創建成功！分享代碼給朋友');
+        }
+
+        function showJoinModal() {
+            document.getElementById('joinModal').classList.add('active');
+        }
+
+        function hideJoinModal() {
+            document.getElementById('joinModal').classList.remove('active');
+        }
+
+        // 存儲創建的房間（本地模擬）
+        let createdRooms = {};
+
+        function joinRoom() {
+            const code = document.getElementById('joinCode').value.toUpperCase().trim();
+            myData.name = document.getElementById('playerName').value || '玩家';
+            
+            if (code.length !== 4) {
+                showNotification('請輸入4位房間代碼！');
+                return;
+            }
+            
+            hideJoinModal();
+            
+            // 檢查是否為自己創建的房間
+            if (createdRooms[code]) {
+                // 加入自己的房間
+                gameState.roomCode = code;
+                gameState.isHost = false;
+                gameState.spectator = null;
+                
+                // 複製房間的 racers 並添加自己
+                const roomData = createdRooms[code];
+                gameState.racers = JSON.parse(JSON.stringify(roomData.racers));
+                
+                // 找到自己空位或添加為新玩家
+                const emptySlot = gameState.racers.findIndex(r => r.isAI && r.name === '等待中...');
+                if (emptySlot >= 0) {
+                    gameState.racers[emptySlot] = {
+                        id: emptySlot, name: myData.name, avatar: '🏃',
+                        isAI: false, isYou: true, ready: false,
+                        clicks: 0, finished: false, finishTime: 0,
+                        color: '#2ecc71', x: (emptySlot - CONFIG.MAX_RACERS/2) * scene3D.laneWidth
+                    };
+                } else if (gameState.racers.length < CONFIG.MAX_RACERS) {
+                    const newId = gameState.racers.length;
+                    gameState.racers.push({
+                        id: newId, name: myData.name, avatar: '🏃',
+                        isAI: false, isYou: true, ready: false,
+                        clicks: 0, finished: false, finishTime: 0,
+                        color: '#2ecc71', x: (newId - CONFIG.MAX_RACERS/2) * scene3D.laneWidth
+                    });
+                }
+                
+                updateLobby();
+                showScreen('lobby');
+                document.getElementById('lobbyCode').textContent = `ROOM: ${code}`;
+                document.getElementById('aiBtn').style.display = 'none';
+                document.getElementById('startBtn').style.display = 'none';
+                showNotification('成功加入房間！');
+            } else {
+                // 房間不存在，創建新房間並自動添加AI
+                showNotification('房間不存在，創建新房間...');
+                setTimeout(() => {
+                    createRoomWithAI();
+                }, 500);
+            }
+        }
+
+        function createRoomWithAI() {
+            myData.name = document.getElementById('playerName').value || '玩家';
+            gameState.roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+            gameState.isHost = true;
+            gameState.spectator = null;
+            
+            // 創建房間並保存
+            gameState.racers = [{
+                id: 0, name: myData.name, avatar: '🏃',
+                isAI: false, isYou: true, ready: false,
+                clicks: 0, finished: false, finishTime: 0,
+                color: '#2ecc71', x: 0
+            }];
+            
+            // 自動添加AI玩家
+            for (let i = 1; i <= 3 && i < CONFIG.MAX_RACERS; i++) {
+                const bot = AI_BOTS[i - 1];
+                gameState.racers.push({
+                    id: i, name: bot.name, avatar: bot.name.substring(0, 2),
+                    isAI: true, isYou: false, aiConfig: bot, ready: true,
+                    clicks: 0, finished: false, finishTime: 0,
+                    color: bot.color, x: (i - CONFIG.MAX_RACERS/2) * scene3D.laneWidth
+                });
+            }
+            
+            // 保存房間
+            createdRooms[gameState.roomCode] = {
+                racers: JSON.parse(JSON.stringify(gameState.racers)),
+                createdAt: Date.now()
+            };
+            
+            updateLobby();
+            showScreen('lobby');
+            document.getElementById('lobbyCode').textContent = `ROOM: ${gameState.roomCode}`;
+            showNotification('房間創建成功！分享代碼給朋友');
+        }
+
+        function copyRoomCode() {
+            const code = gameState.roomCode;
+            if (code) {
+                navigator.clipboard.writeText(code).then(() => showNotification('房間代碼已複製！'));
+            }
+        }
+
+        function quickMatch() {
+            myData.name = document.getElementById('playerName').value || '玩家';
+            gameState.roomCode = 'AI' + Math.random().toString(36).substring(2, 4).toUpperCase();
+            gameState.isHost = true;
+            gameState.spectator = null;
+            
+            gameState.racers = [{
+                id: 0, name: myData.name, avatar: '🏃',
+                isAI: false, isYou: true, ready: true,
+                clicks: 0, finished: false, finishTime: 0,
+                color: '#2ecc71', x: 0
+            }];
+            
+            for (let i = 0; i < AI_BOTS.length; i++) {
+                const bot = AI_BOTS[i];
+                gameState.racers.push({
+                    id: i + 1, name: bot.name, avatar: bot.name.substring(0, 2),
+                    isAI: true, isYou: false, aiConfig: bot, ready: true,
+                    clicks: 0, finished: false, finishTime: 0,
+                    color: bot.color, x: (i - 3) * scene3D.laneWidth
+                });
+            }
+            
+            updateLobby();
+            showScreen('lobby');
+            document.getElementById('lobbyCode').textContent = `ROOM: ${gameState.roomCode}`;
+            document.getElementById('aiBtn').style.display = 'none';
+            document.getElementById('specBtn').style.display = 'none';
+            
+            setTimeout(startGame, 800);
+        }
+
+        // ==================== 觀戰 ====================
+        function toggleSpectate() {
+            const btn = document.getElementById('specBtn');
+            
+            if (!gameState.spectator) {
+                gameState.spectator = { id: -1, name: myData.name, avatar: '👁️', isYou: true };
+                gameState.racers = gameState.racers.filter(r => !r.isYou);
+                btn.classList.add('active');
+                btn.textContent = '👁️ 觀戰中';
+                showNotification('您將以觀戰者身份進入');
+            } else {
+                gameState.spectator = null;
+                gameState.racers.push({
+                    id: 0, name: myData.name, avatar: '🏃',
+                    isAI: false, isYou: true, ready: false,
+                    clicks: 0, finished: false, finishTime: 0,
+                    color: '#2ecc71', x: 0
+                });
+                btn.classList.remove('active');
+                btn.textContent = '👁️ 觀戰';
+            }
+            updateLobby();
+        }
+
+        // ==================== AI ====================
+        function toggleAI() {
+            if (!gameState.isHost) return;
+            
+            const btn = document.getElementById('aiBtn');
+            const hasAI = gameState.racers.some(r => r.isAI);
+            
+            if (!hasAI) {
+                btn.classList.add('active');
+                btn.textContent = '🤖 AI已啟用';
+                
+                let idx = 0;
+                for (let i = gameState.racers.length; i < CONFIG.MAX_RACERS && idx < AI_BOTS.length; i++) {
+                    const bot = AI_BOTS[idx];
+                    gameState.racers.push({
+                        id: i, name: bot.name, avatar: bot.name.substring(0, 2),
+                        isAI: true, isYou: false, aiConfig: bot, ready: true,
+                        clicks: 0, finished: false, finishTime: 0,
+                        color: bot.color, x: (i - CONFIG.MAX_RACERS/2) * scene3D.laneWidth
+                    });
+                    idx++;
+                }
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = '🤖 添加AI';
+                gameState.racers = gameState.racers.filter(r => !r.isAI);
+            }
+            updateLobby();
+        }
+
+        // ==================== 大廳 ====================
+        function updateLobby() {
+            const grid = document.getElementById('slotsGrid');
+            grid.innerHTML = '';
+            
+            for (let i = 0; i < CONFIG.MAX_RACERS; i++) {
+                const racer = gameState.racers[i];
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                
+                if (racer) {
+                    slot.classList.add('occupied');
+                    if (racer.isAI) slot.classList.add('ai');
+                    if (racer.ready) slot.classList.add('ready');
+                    
+                    const status = racer.isAI ? '🤖 AI' : racer.ready ? '✅ 已準備' : racer.isYou ? '⏳ 點擊準備' : '⏳ 等待中';
+                    
+                    slot.innerHTML = `
+                        <div class="slot-avatar">${racer.avatar}</div>
+                        <div class="slot-name">${racer.isAI ? racer.name.substring(2) : racer.name}</div>
+                        <div class="slot-status">${status}</div>
+                        ${racer.isYou && !racer.ready ? `<label class="slot-check"><input type="checkbox" onchange="toggleReady(this.checked)">準備</label>` : ''}
+                    `;
+                } else {
+                    slot.innerHTML = `<div class="slot-avatar">⭕</div><div class="slot-name">等待中...</div><div class="slot-status">EMPTY</div>`;
+                }
+                grid.appendChild(slot);
+            }
+            
+            if (gameState.spectator) {
+                const specSlot = document.createElement('div');
+                specSlot.className = 'slot spectator';
+                specSlot.innerHTML = `<div class="slot-avatar">👁️</div><div class="slot-name">${gameState.spectator.name}</div><div class="slot-status">觀戰者</div>`;
+                grid.appendChild(specSlot);
+            }
+            
+            const startBtn = document.getElementById('startBtn');
+            const ready = gameState.racers.filter(r => r.ready).length;
+            
+            if (gameState.isHost) {
+                if (ready >= 2) {
+                    startBtn.disabled = false;
+                    startBtn.textContent = `開始 (${ready})`;
+                } else {
+                    startBtn.disabled = true;
+                    startBtn.textContent = '等待玩家...';
+                }
+            } else {
+                startBtn.disabled = true;
+                startBtn.textContent = '等待房主...';
+            }
+        }
+
+        function toggleReady(ready) {
+            myData.ready = ready;
+            const racer = gameState.racers.find(r => r.isYou);
+            if (racer) racer.ready = ready;
+            updateLobby();
+        }
+
+        function leaveLobby() {
+            gameState.racers = [];
+            gameState.spectator = null;
+            gameState.isHost = false;
+            myData.ready = false;
+            showScreen('mainMenu');
+        }
+
+        // ==================== 開始遊戲 ====================
+        function startGame() {
+            if (!gameState.isHost) return;
+            
+            const ready = gameState.racers.filter(r => r.ready).length;
+            if (ready < 2) {
+                showNotification('至少需要2位玩家！');
+                return;
+            }
+            
+            showScreen('countdown');
+            let count = CONFIG.COUNTDOWN_TIME;
+            
+            const interval = setInterval(() => {
+                document.getElementById('countdownNum').textContent = count;
+                if (count <= 0) {
+                    clearInterval(interval);
+                    document.getElementById('countdownNum').textContent = 'GO!';
+                    setTimeout(initGame, 400);
+                }
+                count--;
+            }, 1000);
+        }
+
+        function initGame() {
+            showScreen('game');
+            gameState.gameStarted = true;
+            gameState.gameEnded = false;
+            gameState.startTime = Date.now();
+            
+            myData.clicks = 0;
+            myData.speed = 0;
+            myData.stamina = 100;
+            myData.nitroActive = false;
+            myData.nitroCooldown = 0;
+            myData.clickTimes = [];
+            
+            gameState.racers.forEach((r, i) => {
+                r.clicks = 0;
+                r.finished = false;
+                r.finishTime = 0;
+                r.x = (i - gameState.racers.length / 2) * scene3D.laneWidth;
+            });
+            
+            if (gameState.spectator && gameState.spectator.isYou) {
+                gameState.spectateTarget = gameState.racers[0]?.id;
+            }
+            
+            gameState.aiTimeouts.forEach(clearTimeout);
+            gameState.aiTimeouts = [];
+            
+            createRacerList();
+            requestAnimationFrame(gameLoop);
+            requestAnimationFrame(render3D);
+            
+            if (gameState.racers.some(r => r.isAI)) startAI();
+        }
+
+        function createRacerList() {
+            const list = document.getElementById('racerList');
+            list.innerHTML = '';
+            
+            gameState.racers.forEach(racer => {
+                const item = document.createElement('div');
+                item.className = 'racer-item';
+                item.id = `racer-item-${racer.id}`;
+                if (racer.isYou) item.classList.add('you');
+                
+                item.innerHTML = `
+                    <span class="racer-rank">-</span>
+                    <span class="racer-name">${racer.isAI ? racer.name.substring(2) : racer.name}</span>
+                    <span class="racer-count" id="racer-count-${racer.id}">0</span>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+
+        // ==================== 遊戲循環 ====================
+        function gameLoop() {
+            if (!gameState.gameStarted || gameState.gameEnded) return;
+            
+            const now = Date.now();
+            const elapsed = now - gameState.startTime;
+            
+            // 時間
+            const sec = Math.floor(elapsed / 1000);
+            const ms = Math.floor((elapsed % 1000) / 10);
+            document.getElementById('hudTime').textContent = 
+                `${sec.toString().padStart(2, '0')}:${ms.toString().padStart(2, '0')}`;
+            
+            // 體力恢復
+            if (!gameState.spectator || !gameState.spectator.isYou) {
+                if (myData.stamina < CONFIG.STAMINA_MAX) {
+                    myData.stamina += CONFIG.STAMINA_REGEN;
+                    if (myData.stamina > CONFIG.STAMINA_MAX) myData.stamina = CONFIG.STAMINA_MAX;
+                }
+                
+                if (myData.nitroCooldown > 0) {
+                    myData.nitroCooldown -= 16;
+                    if (myData.nitroCooldown < 0) myData.nitroCooldown = 0;
+                }
+                
+                if (myData.nitroActive && myData.nitroCooldown <= CONFIG.NITRO_COOLDOWN) {
+                    myData.nitroActive = false;
+                }
+            }
+            
+            updateCamera();
+            updateHUD();
+            updateRacerList();
+            checkWin();
+            
+            if (!gameState.gameEnded) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function updateCamera() {
+            let target;
+            
+            if (gameState.spectator && gameState.spectator.isYou && gameState.spectateTarget !== null) {
+                target = gameState.racers.find(r => r.id === gameState.spectateTarget);
+            } else {
+                target = gameState.racers.find(r => r.isYou);
+            }
+            
+            if (target) {
+                const z = (target.clicks / CONFIG.TARGET_CLICKS) * scene3D.trackLength;
+                gameState.camera.z = 400 + z * 0.7;
+                gameState.camera.x = target.x * 0.3;
+            }
+            
+            if (scene3D.shake > 0) {
+                gameState.camera.x += (Math.random() - 0.5) * scene3D.shake;
+                scene3D.shake *= 0.9;
+                if (scene3D.shake < 0.5) scene3D.shake = 0;
+            }
+        }
+
+        // ==================== HUD更新 ====================
+        function updateHUD() {
+            // 進度
+            document.getElementById('hudClicks').textContent = myData.clicks;
+            document.getElementById('hudProgressFill').style.width = (myData.clicks / CONFIG.TARGET_CLICKS) * 100 + '%';
+            
+            // 體力
+            document.getElementById('hudStaminaFill').style.width = myData.stamina + '%';
+            
+            // 速度
+            document.getElementById('hudSpeed').textContent = myData.speed + ' CPS';
+            
+            // 排名
+            const sorted = [...gameState.racers].sort((a, b) => b.clicks - a.clicks);
+            const myRank = sorted.findIndex(r => r.isYou) + 1;
+            document.getElementById('hudRank').textContent = myRank > 0 ? myRank : '-';
+            document.getElementById('hudTotal').textContent = '/' + gameState.racers.length;
+            
+            // 觀戰者不顯示操作UI
+            if (gameState.spectator && gameState.spectator.isYou) {
+                const target = gameState.racers.find(r => r.id === gameState.spectateTarget);
+                document.getElementById('spectateName').textContent = target ? (target.isAI ? target.name.substring(2) : target.name) : '-';
+                return;
+            }
+            
+            // 速度表
+            const speedDeg = Math.min(myData.speed * 8, 270) - 135;
+            document.getElementById('gaugeNeedle').style.transform = `translateX(-50%) rotate(${speedDeg}deg)`;
+            document.getElementById('gaugeValue').textContent = myData.speed;
+            
+            // 氮氣按鈕
+            const nitroBtn = document.getElementById('nitroBtn');
+            if (myData.nitroCooldown > 0) {
+                nitroBtn.disabled = true;
+                nitroBtn.textContent = `⏳ ${Math.ceil(myData.nitroCooldown/1000)}s`;
+            } else {
+                nitroBtn.disabled = false;
+                nitroBtn.textContent = '⚡ 加速';
+                if (myData.nitroActive) nitroBtn.classList.add('active');
+                else nitroBtn.classList.remove('active');
+            }
+        }
+
+        function updateRacerList() {
+            const sorted = [...gameState.racers].sort((a, b) => b.clicks - a.clicks);
+            
+            sorted.forEach((racer, idx) => {
+                const item = document.getElementById(`racer-item-${racer.id}`);
+                const count = document.getElementById(`racer-count-${racer.id}`);
+                
+                if (item && count) {
+                    item.querySelector('.racer-rank').textContent = '#' + (idx + 1);
+                    count.textContent = racer.clicks;
+                    
+                    if (idx === 0) item.classList.add('leading');
+                    else item.classList.remove('leading');
+                }
+            });
+        }
+
+        // ==================== 3D渲染 ====================
+        function render3D() {
+            if (!gameState.gameStarted) {
+                requestAnimationFrame(render3D);
+                return;
+            }
+            
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            // 天空漸變
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, '#0a0a1a');
+            grad.addColorStop(0.5, '#1a0a2e');
+            grad.addColorStop(1, '#2a1a3e');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const cam = gameState.camera;
+            
+            // 雲朵
+            scene3D.clouds.forEach(cloud => {
+                cloud.x += cloud.speed;
+                if (cloud.x > 1000) cloud.x = -1000;
+                const p = project(cloud.x, cloud.y, cloud.z, cam);
+                if (p) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, cloud.size * p.scale, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            
+            // 賽道網格
+            for (let z = 0; z < scene3D.trackLength; z += 50) {
+                const p1 = project(-500, 0, z, cam);
+                const p2 = project(500, 0, z, cam);
+                if (p1 && p2) {
+                    const alpha = Math.max(0, 1 - z / scene3D.trackLength) * 0.25;
+                    ctx.strokeStyle = `rgba(255,215,0,${alpha})`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                }
+            }
+            
+            // 跑道線
+            for (let x = -400; x <= 400; x += scene3D.laneWidth) {
+                const p1 = project(x, 0, 0, cam);
+                const p2 = project(x, 0, scene3D.trackLength, cam);
+                if (p1 && p2) {
+                    ctx.strokeStyle = 'rgba(255,215,0,0.12)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x, p1.y);
+                    ctx.lineTo(p2.x, p2.y);
+                    ctx.stroke();
+                }
+            }
+            
+            // 終點線
+            const f1 = project(-400, 0, scene3D.trackLength, cam);
+            const f2 = project(400, 0, scene3D.trackLength, cam);
+            if (f1 && f2) {
+                const stripeW = 18 * f1.scale;
+                const stripes = Math.floor((f2.x - f1.x) / stripeW);
+                for (let i = 0; i < stripes; i++) {
+                    ctx.fillStyle = i % 2 === 0 ? '#000' : '#fff';
+                    ctx.fillRect(f1.x + i * stripeW, f1.y - 4 * f1.scale, stripeW, 8 * f1.scale);
+                }
+                
+                ctx.strokeStyle = '#FFD700';
+                ctx.lineWidth = 5 * f1.scale;
+                ctx.beginPath();
+                ctx.moveTo(f1.x, f1.y - 100 * f1.scale);
+                ctx.lineTo(f1.x, f1.y);
+                ctx.moveTo(f2.x, f2.y - 100 * f2.scale);
+                ctx.lineTo(f2.x, f2.y);
+                ctx.moveTo(f1.x, f1.y - 100 * f1.scale);
+                ctx.lineTo(f2.x, f2.y - 100 * f2.scale);
+                ctx.stroke();
+                
+                ctx.fillStyle = '#FFD700';
+                ctx.font = `bold ${22 * f1.scale}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#FFD700';
+                ctx.shadowBlur = 15;
+                ctx.fillText('🏁 FINISH', canvas.width / 2, f1.y - 130 * f1.scale);
+                ctx.shadowBlur = 0;
+            }
+            
+            // 賽車
+            gameState.racers.forEach(racer => {
+                const prog = racer.clicks / CONFIG.TARGET_CLICKS;
+                const rz = prog * scene3D.trackLength;
+                
+                const body = project(racer.x, -30, rz, cam);
+                const shadow = project(racer.x, 0, rz, cam);
+                
+                if (body && shadow) {
+                    // 陰影
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.beginPath();
+                    ctx.ellipse(shadow.x, shadow.y, 18 * shadow.scale, 8 * shadow.scale, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // 車身
+                    const sz = 25 * body.scale;
+                    ctx.shadowColor = racer.color;
+                    ctx.shadowBlur = 15;
+                    
+                    ctx.fillStyle = racer.color;
+                    ctx.fillRect(body.x - sz/2, body.y - sz, sz, sz * 0.6);
+                    
+                    ctx.fillStyle = lighten(racer.color, 30);
+                    ctx.fillRect(body.x - sz/3, body.y - sz * 1.1, sz * 0.66, sz * 0.3);
+                    
+                    ctx.shadowBlur = 0;
+                    
+                    // 名稱
+                    ctx.fillStyle = '#fff';
+                    ctx.font = `bold ${10 * body.scale}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.shadowColor = '#000';
+                    ctx.shadowBlur = 2;
+                    ctx.fillText(racer.isAI ? racer.name.substring(2) : racer.name, body.x, body.y - sz * 1.3);
+                    ctx.shadowBlur = 0;
+                    
+                    // 點擊數
+                    ctx.fillStyle = '#FFD700';
+                    ctx.font = `bold ${12 * body.scale}px Arial`;
+                    ctx.fillText(racer.clicks, body.x, body.y + 2);
+                }
+            });
+            
+            // 粒子
+            scene3D.particles = scene3D.particles.filter(p => {
+                p.y -= p.vy;
+                p.x += p.vx;
+                p.life -= 0.02;
+                p.vy *= 0.98;
+                
+                const pp = project(p.x, p.y, p.z, cam);
+                if (pp && p.life > 0) {
+                    ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${p.life})`;
+                    ctx.beginPath();
+                    ctx.arc(pp.x, pp.y, p.size * pp.scale, 0, Math.PI * 2);
+                    ctx.fill();
+                    return true;
+                }
+                return false;
+            });
+            
+            if (!gameState.gameEnded) {
+                requestAnimationFrame(render3D);
+            }
+        }
+
+        function project(x, y, z, cam) {
+            const fov = 900;
+            const dist = z + cam.z;
+            if (dist <= 0) return null;
+            
+            const scale = fov / dist;
+            const px = (x - cam.x) * scale + window.innerWidth / 2;
+            const py = (y - cam.y) * scale + window.innerHeight / 2;
+            
+            return { x: px, y: py, scale: scale };
+        }
+
+        function lighten(c, p) {
+            const n = parseInt(c.replace('#', ''), 16);
+            const a = Math.round(2.55 * p);
+            const R = Math.min(255, (n >> 16) + a);
+            const G = Math.min(255, (n >> 8 & 0xFF) + a);
+            const B = Math.min(255, (n & 0xFF) + a);
+            return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+        }
+
+        function addParticle(x, z) {
+            const colors = [
+                { r: 255, g: 215, b: 0 },
+                { r: 255, g: 99, b: 71 },
+                { r: 0, g: 245, b: 255 }
+            ];
+            const c = colors[Math.floor(Math.random() * colors.length)];
+            
+            for (let i = 0; i < 3; i++) {
+                scene3D.particles.push({
+                    x: x + (Math.random() - 0.5) * 20,
+                    y: -30,
+                    z: z - 10,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: 1.5 + Math.random() * 2,
+                    life: 1,
+                    size: 2 + Math.random() * 3,
+                    r: c.r, g: c.g, b: c.b
+                });
+            }
+        }
+
+        // ==================== 操作 ====================
+        function doClick(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            if (!gameState.gameStarted || gameState.gameEnded) return;
+            
+            if (gameState.spectator && gameState.spectator.isYou) {
+                showNotification('觀戰模式中無法操作');
+                return;
+            }
+            
+            const me = gameState.racers.find(r => r.isYou);
+            if (!me || me.finished) return;
+            
+            if (myData.stamina < CONFIG.STAMINA_COST) {
+                showNotification('體力不足！', 'boost');
+                return;
+            }
+            
+            const now = Date.now();
+            myData.clickTimes = myData.clickTimes.filter(t => now - t < 1000);
+            myData.clickTimes.push(now);
+            myData.speed = myData.clickTimes.length;
+            
+            myData.stamina -= CONFIG.STAMINA_COST;
+            
+            const mult = myData.nitroActive ? 2 : 1;
+            myData.clicks += mult;
+            me.clicks = myData.clicks;
+            
+            const prog = me.clicks / CONFIG.TARGET_CLICKS;
+            addParticle(me.x, prog * scene3D.trackLength);
+            
+            scene3D.shake = 2;
+            
+            // 點擊特效
+            const effect = document.createElement('div');
+            effect.className = 'click-effect';
+            effect.textContent = myData.nitroActive ? '+2' : '+1';
+            
+            let x, y;
+            if (e && e.touches && e.touches[0]) {
+                x = e.touches[0].clientX;
+                y = e.touches[0].clientY;
+            } else if (e && e.clientX) {
+                x = e.clientX;
+                y = e.clientY;
+            } else {
+                const btn = document.getElementById('mainClickBtn');
+                const rect = btn.getBoundingClientRect();
+                x = rect.left + rect.width / 2;
+                y = rect.top;
+            }
+            
+            effect.style.left = x + 'px';
+            effect.style.top = y + 'px';
+            if (myData.nitroActive) {
+                effect.style.color = '#00f5ff';
+                effect.style.textShadow = '0 0 15px #00f5ff';
+            }
+            document.body.appendChild(effect);
+            setTimeout(() => effect.remove(), 600);
+            
+            if (myData.clicks >= CONFIG.TARGET_CLICKS) {
+                finishGame(me.id);
+            }
+        }
+
+        function useNitro() {
+            if (myData.nitroCooldown > 0 || myData.nitroActive) return;
+            
+            myData.nitroActive = true;
+            myData.nitroCooldown = CONFIG.NITRO_COOLDOWN + CONFIG.NITRO_DURATION;
+            showNotification('⚡ 雙倍速度！', 'boost');
+            
+            setTimeout(() => { myData.nitroActive = false; }, CONFIG.NITRO_DURATION);
+        }
+
+        function rest() {
+            myData.stamina = Math.min(myData.stamina + CONFIG.REST_GAIN, CONFIG.STAMINA_MAX);
+            showNotification(`💪 體力 +${CONFIG.REST_GAIN}`, 'boost');
+        }
+
+        function showNotification(text, type = '') {
+            const notif = document.getElementById('notification');
+            notif.textContent = text;
+            notif.className = 'notification show ' + type;
+            setTimeout(() => notif.classList.remove('show'), 1500);
+        }
+
+        // ==================== 觀戰控制 ====================
+        function spectateNext() {
+            if (!gameState.spectator || !gameState.spectator.isYou) return;
+            
+            const active = gameState.racers.filter(r => !r.finished);
+            if (active.length === 0) return;
+            
+            const idx = gameState.spectateTarget ? active.findIndex(r => r.id === gameState.spectateTarget) : -1;
+            gameState.spectateTarget = active[(idx + 1) % active.length].id;
+        }
+
+        function spectatePrev() {
+            if (!gameState.spectator || !gameState.spectator.isYou) return;
+            
+            const active = gameState.racers.filter(r => !r.finished);
+            if (active.length === 0) return;
+            
+            const idx = gameState.spectateTarget ? active.findIndex(r => r.id === gameState.spectateTarget) : 0;
+            gameState.spectateTarget = active[(idx - 1 + active.length) % active.length].id;
+        }
+
+        function spectateLeader() {
+            if (!gameState.spectator || !gameState.spectator.isYou) return;
+            
+            const sorted = [...gameState.racers].sort((a, b) => b.clicks - a.clicks);
+            if (sorted.length > 0) gameState.spectateTarget = sorted[0].id;
+        }
+
+
+        // ==================== AI ====================
+        function startAI() {
+            gameState.racers.forEach(racer => {
+                if (racer.isAI && !racer.finished) {
+                    runAI(racer);
+                }
+            });
+        }
+
+        function runAI(racer) {
+            if (!gameState.gameStarted || gameState.gameEnded || racer.finished) return;
+            
+            const cfg = racer.aiConfig;
+            let interval = 1000 / cfg.baseSpeed;
+            
+            interval *= (1 + (Math.random() - 0.5) * (1 - cfg.variance));
+            
+            if (Math.random() < cfg.burst) {
+                interval *= 0.5;
+                racer.nitroActive = true;
+            } else {
+                racer.nitroActive = false;
+            }
+            
+            const prog = racer.clicks / CONFIG.TARGET_CLICKS;
+            interval *= (1 + prog * 0.4);
+            
+            const clicks = Math.random() < 0.1 ? 2 : 1;
+            
+            const to = setTimeout(() => {
+                if (!gameState.gameStarted || gameState.gameEnded || racer.finished) return;
+                
+                racer.clicks += clicks;
+                
+                const p = racer.clicks / CONFIG.TARGET_CLICKS;
+                addParticle(racer.x, p * scene3D.trackLength);
+                
+                if (racer.clicks >= CONFIG.TARGET_CLICKS) {
+                    finishGame(racer.id);
+                } else {
+                    runAI(racer);
+                }
+            }, interval);
+            
+            gameState.aiTimeouts.push(to);
+        }
+
+        // ==================== 結束 ====================
+        function finishGame(id) {
+            const racer = gameState.racers.find(r => r.id === id);
+            if (!racer || racer.finished) return;
+            
+            racer.finished = true;
+            racer.finishTime = Date.now() - gameState.startTime;
+            
+            if (racer.isYou) showNotification('🎉 完成比賽！', 'boost');
+            
+            if (gameState.spectator && gameState.spectator.isYou && gameState.spectateTarget === id) {
+                const active = gameState.racers.filter(r => !r.finished);
+                if (active.length > 0) gameState.spectateTarget = active[0].id;
+            }
+            
+            checkWin();
+        }
+
+        function checkWin() {
+            const finished = gameState.racers.filter(r => r.finished);
+            
+            if (finished.length === gameState.racers.length) {
+                endGame();
+            } else if (finished.length > 0) {
+                const first = Math.min(...finished.map(r => r.finishTime));
+                const now = Date.now() - gameState.startTime;
+                if (now - first > 5000) endGame();
+            }
+        }
+
+        function endGame() {
+            if (gameState.gameEnded) return;
+            gameState.gameEnded = true;
+            gameState.gameStarted = false;
+            
+            gameState.aiTimeouts.forEach(clearTimeout);
+            if (bgMusic) bgMusic.playing = false;
+            
+            const results = [...gameState.racers].sort((a, b) => {
+                if (a.finished && b.finished) return a.finishTime - b.finishTime;
+                if (a.finished) return -1;
+                if (b.finished) return 1;
+                return b.clicks - a.clicks;
+            });
+            
+            showResults(results);
+        }
+
+        function showResults(results) {
+            showScreen('result');
+            
+            const title = document.getElementById('resultTitle');
+            const slogan = document.getElementById('victorySlogan');
+            
+            if (gameState.spectator && gameState.spectator.isYou) {
+                title.textContent = '👁️ 觀戰結束';
+                title.className = 'result-title win';
+                slogan.textContent = '感謝您的觀戰';
+            } else {
+                const myRank = results.findIndex(r => r.isYou) + 1;
+                
+                if (myRank === 1) {
+                    title.textContent = '🏆 冠軍！';
+                    title.className = 'result-title win';
+                    slogan.textContent = '一馬當先 業績第一';
+                } else if (myRank === 2) {
+                    title.textContent = '🥈 亞軍！';
+                    title.className = 'result-title win';
+                    slogan.textContent = '再接再厲 更創佳績';
+                } else if (myRank === 3) {
+                    title.textContent = '🥉 季軍！';
+                    title.className = 'result-title win';
+                    slogan.textContent = '穩扎穩打 持續進步';
+                } else {
+                    title.textContent = '比賽結束';
+                    title.className = 'result-title';
+                    title.style.color = '#C0C0C0';
+                    slogan.textContent = '勤能補拙 下次再戰';
+                }
+            }
+            
+            const grid = document.getElementById('resultGrid');
+            grid.innerHTML = '';
+            
+            results.forEach((racer, idx) => {
+                const card = document.createElement('div');
+                card.className = 'result-card' + (racer.isYou ? ' highlight' : '');
+                
+                let rank = (idx + 1).toString();
+                if (idx === 0) rank = '🥇';
+                else if (idx === 1) rank = '🥈';
+                else if (idx === 2) rank = '🥉';
+                
+                const time = racer.finished ? `⏱ ${(racer.finishTime/1000).toFixed(2)}s` : `${racer.clicks}次`;
+                
+                card.innerHTML = `
+                    <div class="result-rank ${idx===0?'gold':idx===1?'silver':idx===2?'bronze':''}">${rank}</div>
+                    <div class="result-avatar">${racer.isAI?racer.avatar:'🏃'}</div>
+                    <div class="result-name">${racer.isAI?racer.name.substring(2):racer.name}</div>
+                    <div class="result-clicks">${racer.clicks} 次</div>
+                    <div class="result-time">${time}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function backToMenu() {
+            gameState.gameStarted = false;
+            gameState.gameEnded = false;
+            gameState.racers = [];
+            gameState.spectator = null;
+            gameState.isHost = false;
+            myData.ready = false;
+            scene3D.particles = [];
+            showScreen('mainMenu');
+        }
+
+        // ==================== Canvas ====================
+        function initCanvas() {
+            const canvas = document.getElementById('gameCanvas');
+            
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+            
+            const ctx = canvas.getContext('2d');
+            function initRender() {
+                if (gameState.gameStarted) return;
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                requestAnimationFrame(initRender);
+            }
+            initRender();
+        }
+
+        // ==================== 鍵盤 ====================
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' || e.key === ' ') {
+                e.preventDefault();
+                doClick();
+            }
+            
+            if (gameState.spectator && gameState.spectator.isYou && gameState.gameStarted) {
+                if (e.key === 'ArrowLeft') spectatePrev();
+                if (e.key === 'ArrowRight') spectateNext();
+                if (e.key === 'l' || e.key === 'L') spectateLeader();
+            }
+        });
+
+        // 防止縮放
+        let lastTouch = 0;
+        document.addEventListener('touchend', (e) => {
+            const now = Date.now();
+            if (now - lastTouch <= 300) e.preventDefault();
+            lastTouch = now;
+        }, false);
+
+        document.addEventListener('contextmenu', e => e.preventDefault());
+    </script>
+</body>
+</html>
